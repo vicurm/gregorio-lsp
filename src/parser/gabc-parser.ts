@@ -301,12 +301,11 @@ export class GABCParser {
   public validateNotation(ast: GABCDocument): ParseError[] {
     const errors: ParseError[] = [];
     
-    // Validate unrecognized characters in music notation
     ast.music.syllables.forEach(syllable => {
       if (syllable.music) {
         const musicContent = syllable.music.content;
         
-        // Check for common unrecognized characters
+        // Validate unrecognized characters in music notation
         const invalidChars = /[^a-zA-Z0-9()\[\]{}|\/\\\-_.'`~<>:;,=+@#$% \t\n\r]/g;
         let match;
         
@@ -318,6 +317,58 @@ export class GABCParser {
             range: syllable.music.range,
             severity: 1 // Error
           });
+        }
+        
+        // Validate pitch letters (a-p are valid notes, q-z are generally invalid)
+        // But we need to be careful with GABC notation elements
+        const pitchPattern = /(?:^|[^a-zA-Z])([q-z])(?![a-zA-Z])/g;
+        let pitchMatch;
+        
+        while ((pitchMatch = pitchPattern.exec(musicContent)) !== null) {
+          const letter = pitchMatch[1];
+          
+          // Skip valid GABC elements that use these letters
+          const context = musicContent.substring(Math.max(0, pitchMatch.index - 5), pitchMatch.index + 6);
+          const skipPatterns = [
+            /quilisma/i, /qu/i,  // quilisma notation
+            /virga/i, /stropha/i, /oriscus/i,  // shape names  
+            /vert/i, /vertical/i, // vertical elements
+            /\w+[qrstuvwxyz]\w*/i // part of longer words
+          ];
+          
+          const shouldSkip = skipPatterns.some(pattern => pattern.test(context));
+          
+          if (!shouldSkip) {
+            const message = GREGORIO_ERROR_MESSAGES.INVALID_PITCH
+              .replace('%u', '4') // Default to 4-line staff
+              .replace('%c', letter);
+              
+            errors.push({
+              message,
+              range: syllable.music.range,
+              severity: 1 // Error
+            });
+          }
+        }
+        
+        // Validate clef notations (should be c1-c5, f1-f5)
+        const clefPattern = /[cf]([0-9]+)/g;
+        let clefMatch;
+        
+        while ((clefMatch = clefPattern.exec(musicContent)) !== null) {
+          const clefLine = parseInt(clefMatch[1], 10);
+          
+          if (clefLine < 1 || clefLine > 5) {
+            const message = GREGORIO_ERROR_MESSAGES.INVALID_CLEF_LINE
+              .replace('%u', '4') // Default to 4-line staff  
+              .replace('%d', clefLine.toString());
+              
+            errors.push({
+              message,
+              range: syllable.music.range,
+              severity: 1 // Error
+            });
+          }
         }
       }
     });
