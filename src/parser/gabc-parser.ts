@@ -11,7 +11,8 @@ import {
   ASTNode, 
   ParseError,
   NABCConfiguration,
-  ErrorCode
+  ErrorCode,
+  GREGORIO_ERROR_MESSAGES
 } from '../types';
 
 // Placeholder for tree-sitter-gregorio language
@@ -51,10 +52,14 @@ export class GABCParser {
 
       const ast = this.convertToAST(tree.rootNode, text);
       
+      // Run NABC alternation validation
+      const nabcConfig = this.extractNABCConfiguration(ast as GABCDocument);
+      const alternationErrors = this.validateAlternation(ast as GABCDocument, nabcConfig);
+      
       return {
-        success: true,
+        success: alternationErrors.length === 0,
         ast: ast as GABCDocument,
-        errors: []
+        errors: alternationErrors
       };
     } catch (error) {
       return {
@@ -110,10 +115,14 @@ export class GABCParser {
         music: musicSection
       };
 
+      // Run NABC alternation validation
+      const nabcConfig = this.extractNABCConfiguration(ast);
+      const alternationErrors = this.validateAlternation(ast, nabcConfig);
+
       return {
-        success: true,
+        success: alternationErrors.length === 0,
         ast,
-        errors: []
+        errors: alternationErrors
       };
     } catch (error) {
       return {
@@ -226,7 +235,7 @@ export class GABCParser {
           for (const group of noteGroups) {
             if (group.snippets.length > 1) {
               errors.push({
-                message: `Pipe character "|" detected but no nabc-lines header specified. All content should be GABC without alternation.`,
+                message: GREGORIO_ERROR_MESSAGES.PIPE_WITHOUT_NABC_LINES,
                 range: syllable.music.range,
                 severity: 1, // Error
                 code: ErrorCode.INVALID_PIPE_WITHOUT_NABC
@@ -237,7 +246,7 @@ export class GABCParser {
             for (const snippet of group.snippets) {
               if (this.isNabcSnippet(snippet)) {
                 errors.push({
-                  message: `NABC notation detected in GABC-only mode. Add nabc-lines header to enable NABC alternation.`,
+                  message: GREGORIO_ERROR_MESSAGES.NABC_WITHOUT_ALTERNATION,
                   range: syllable.music.range,
                   severity: 1, // Error
                   code: ErrorCode.NABC_IN_GABC_ONLY_MODE
@@ -333,15 +342,14 @@ export class GABCParser {
     }
     
     // NABC snippets contain specific NABC notation patterns:
-    // - Descriptors like 'peGlsa6tohl', 'toppt2lss2lsim2', 'qlppn1'
+    // - Long descriptors like 'peGlsa6tohl', 'toppt2lss2lsim2', 'qlppn1'
     // - Modifiers like 'un', 'ta', 'vi', etc. 
     // - NABC-specific symbols: backticks, underscores, certain combinations
+    // 
+    // Important: Avoid patterns that match regular GABC notation like 'ce', 'gf', etc.
     
     const nabcPatterns = [
-      /[0-9]/,                    // Contains digits
-      /n[0-9a-f]/,               // NABC pitch descriptors (n0-nf)
-      /g[a-z]/,                  // NABC glyph descriptors (ga-gz)
-      /[a-z]{2,}[0-9]/,         // Long descriptors with numbers (peGlsa6tohl)
+      /[a-z]{3,}[0-9]/,         // Long descriptors with numbers (peGlsa6tohl, toppt2lss2lsim2)
       /[a-z]+pt[0-9]/,          // Point descriptors (toppt2)
       /lss?[0-9]/,              // Line spacing (lss2, ls3)
       /lsim[0-9]/,              // Line simulation (lsim2)
@@ -352,7 +360,9 @@ export class GABCParser {
       /vi>[0-9]/,               // NABC virga patterns
       /pf[0-9]/,                // NABC punctum patterns
       /``+/,                    // Multiple backticks
-      /un|ta|vi(?![a-z])/,      // Common NABC modifiers (but not 'via', 'vir', etc.)
+      /\b(un|ta|vi)\b/,         // Common NABC modifiers as whole words
+      /[0-9][a-z]/,             // Digit followed by letter (NABC pitch descriptors)
+      /g[a-z]{2,}/,             // Glyph descriptors with 3+ chars (avoid 'gf', 'ge', etc.)
     ];
 
     return nabcPatterns.some(pattern => pattern.test(snippet));

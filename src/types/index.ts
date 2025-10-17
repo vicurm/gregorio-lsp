@@ -131,6 +131,15 @@ export enum ErrorCode {
   NABC_IN_GABC_ONLY_MODE = 'nabc_in_gabc_only_mode'
 }
 
+// Official Gregorio Compiler Error Messages
+export const GREGORIO_ERROR_MESSAGES = {
+  PIPE_WITHOUT_NABC_LINES: 'You used character "|" in gabc without setting "nabc-lines" parameter. Please set it in your gabc header.',
+  NABC_WITHOUT_ALTERNATION: 'NABC notation detected without proper alternation. Verify nabc-lines configuration and alternation pattern.',
+  UNRECOGNIZED_CHARACTER: 'unrecognized character',
+  NO_NAME_SPECIFIED: 'no name specified, put `name:...;\' at the beginning of the file, can be dangerous with some output formats',
+  TOO_MANY_ANNOTATIONS: 'too many definitions of annotation found, only the first will be taken into consideration',
+} as const;
+
 export interface GABCError extends ParseError {
   code: ErrorCode;
   context?: any;

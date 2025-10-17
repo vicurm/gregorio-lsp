@@ -73,32 +73,21 @@ nabc-lines: 2;
   });
 
   test('should detect invalid NABC alternation', async () => {
+    // Test case: pipe without nabc-lines should trigger official Gregorio error
     const gabcContent = `name: Test;
-nabc-lines: 2;
 %%
-(c4) Ky(f)ri(g)e(h).
-(c4) Ky(f)ri(g)e(h).`;  // Linha 2 deveria ser NABC
+(f3) Test(f|g|h) content.`;  // Pipe without nabc-lines header
 
     const document = TextDocument.create('test://test.gabc', 'gabc', 1, gabcContent);
     const parseResult = parser.parse(gabcContent);
     
-    expect(parseResult.success).toBe(true);
+    expect(parseResult.success).toBe(false);
+    expect(parseResult.errors.length).toBeGreaterThan(0);
     
-    if (parseResult.ast) {
-      const settings = {
-        maxNumberOfProblems: 100,
-        enableSemanticValidation: true,
-        enableNabcLinesValidation: true,
-        strictAlternationChecking: true
-      };
-
-      const diagnostics = await validator.validate(parseResult.ast, document, settings);
-
-      expect(diagnostics.length).toBeGreaterThan(0);
-      
-      // Verificar se há erro relacionado à alternação NABC
-      const nabcError = diagnostics.find(d => d.message.includes('NABC') || d.message.includes('alternation'));
-      expect(nabcError).toBeDefined();
-    }
+    // Check for official Gregorio error message
+    const pipeError = parseResult.errors.find(e => 
+      e.message.includes('You used character "|" in gabc without setting "nabc-lines" parameter')
+    );
+    expect(pipeError).toBeDefined();
   });
 });
