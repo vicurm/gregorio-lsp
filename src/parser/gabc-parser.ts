@@ -37,7 +37,6 @@ try {
   for (const gregorioPath of possiblePaths) {
     try {
       gregorioLanguage = require(gregorioPath);
-      console.log('tree-sitter-gregorio loaded successfully from:', gregorioPath);
       break;
     } catch {
       continue;
@@ -61,13 +60,8 @@ export class GABCParser {
     try {
       this.parser = new Parser();
       if (gregorioLanguage) {
-        // Debug the language object
-        console.log('Language object keys:', Object.keys(gregorioLanguage));
-        console.log('Language name:', gregorioLanguage.name);
-        
         this.parser.setLanguage(gregorioLanguage);
         this.treeSitterAvailable = true;
-        console.log('Tree-sitter parser initialized successfully with gregorio language');
       } else {
         console.warn('gregorioLanguage not loaded, using fallback parsing');
         this.treeSitterAvailable = false;
@@ -292,29 +286,36 @@ export class GABCParser {
   }
 
   private detectNABC(musicContent: string): boolean {
-    // Enhanced NABC notation detection patterns
+    // NABC-specific patterns based on official Gregorio specification
+    // Reference: NABC_COMPREHENSIVE_ANALYSIS.md
+    
+    // St. Gall neume codes (31 codes) + Laon additions (un, oc)
+    const neumeCodesPattern = /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)\b/;
+    
+    // Definitive NABC patterns
     const nabcPatterns = [
-      /[1-4][a-m](?:[~^_]|(?:<sp>)|(?:<\/sp>))*/,  // pitch descriptors with modifiers
-      /n[0-9A-F]+/i,                               // neume descriptors (hex support)
-      /g[a-z]+/i,                                  // glyph descriptors
-      /e[a-z]+/i,                                  // episema descriptors
-      /[+-][0-9]+/,                                // explicit spacing
-      /{[^}]+}/,                                   // markup commands
-      /\[[^\]]+\]/,                                // special annotations
-      /![a-z]+!/i,                                 // special markers
-      /<[^>]+>/                                    // XML-like tags
+      // Neume codes with NABC-specific modifiers or pitch descriptors
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[SGM\->~]/,  // neume + glyph modifier
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)h[a-np]/,     // neume + pitch descriptor
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)!/,           // neume + complex glyph separator
+      
+      // Subpunctis/prepunctis descriptors (su/pp + optional modifier + number)
+      /\b(su|pp)[tuvwxynqz]?\d/,
+      
+      // Significant letter descriptors (ls + shorthand + position number)
+      /\bls[a-z]{2,}\d/,
+      
+      // Tironian letters
+      /\{[a-np]\}/,
+      
+      // NABC horizontal spacing (multiple backticks)
+      /``+/,
+      
+      // Multiple NABC neumes in sequence (strong indicator)
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[^()\s]*\s+(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)/,
     ];
 
-    // Also check for common NABC sequences
-    const nabcSequences = [
-      /[1-4][a-m][1-4][a-m]/,                     // multiple pitch descriptors
-      /n[0-9A-F]+[1-4][a-m]/i,                    // neume + pitch
-      /g[a-z]+[1-4][a-m]/i,                       // glyph + pitch
-      /@[1-4][a-m]/                               // pitch with clef
-    ];
-
-    return nabcPatterns.some(pattern => pattern.test(musicContent)) ||
-           nabcSequences.some(pattern => pattern.test(musicContent));
+    return nabcPatterns.some(pattern => pattern.test(musicContent));
   }
 
   private validateNABCMusicContent(content: string): { errors: ParseError[] } {
@@ -501,7 +502,7 @@ export class GABCParser {
         }
         
         // Validate unrecognized characters in music notation
-        const invalidChars = /[^a-zA-Z0-9()\[\]{}|\/\\\-_.'`~<>:;,=+@#$% \t\n\r]/g;
+        const invalidChars = /[^a-zA-Z0-9()\[\]{}|\/\\\-_.'`~<>:;,=+@#$%! \t\n\r]/g;
         let match;
         
         while ((match = invalidChars.exec(musicContent)) !== null) {
@@ -907,31 +908,34 @@ export class GABCParser {
       return false; // Empty snippets are neutral
     }
     
-    // NABC snippets contain specific NABC notation patterns:
-    // - Long descriptors like 'peGlsa6tohl', 'toppt2lss2lsim2', 'qlppn1'
-    // - Modifiers like 'un', 'ta', 'vi', etc. 
-    // - NABC-specific symbols: backticks, underscores, certain combinations
-    // 
-    // Important: Avoid patterns that match regular GABC notation like 'ce', 'gf', etc.
+    // NABC-specific patterns based on official specification
+    // Use restrictive patterns to avoid false positives with GABC notation (e.g., 'gwh' where w is quilisma)
+    // Reference: NABC_COMPREHENSIVE_ANALYSIS.md
     
     const nabcPatterns = [
-      /[a-z]{3,}[0-9]/,         // Long descriptors with numbers (peGlsa6tohl, toppt2lss2lsim2)
-      /[a-z]+pt[0-9]/,          // Point descriptors (toppt2)
-      /lss?[0-9]/,              // Line spacing (lss2, ls3)
-      /lsim[0-9]/,              // Line simulation (lsim2)
-      /qlhh/,                   // NABC quilisma patterns
-      /talse[0-9]/,             // NABC ornament descriptors
-      /clShi|clhi/,             // NABC clivis patterns
-      /st>hi/,                  // NABC step patterns
-      /vi>[0-9]/,               // NABC virga patterns
-      /pf[0-9]/,                // NABC punctum patterns
-      /``+/,                    // Multiple backticks
-      /\b(un|ta|vi)\b/,         // Common NABC modifiers as whole words
-      /[0-9][a-z]/,             // Digit followed by letter (NABC pitch descriptors)
-      /g[a-z]{2,}/,             // Glyph descriptors with 3+ chars (avoid 'gf', 'ge', etc.)
+      // NABC neume codes with NABC-specific modifiers or pitch descriptors
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[SGM\->~]/,
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)h[a-np]/,
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)!/,
+      
+      // Subpunctis/prepunctis with optional modifiers and number
+      /\b(su|pp)[tuvwxynqz]?\d/,
+      
+      // Significant letters: ls + shorthand (2+ chars) + position digit
+      /\bls[a-z]{2,}\d/,
+      
+      // Tironian letters
+      /\{[a-np]\}/,
+      
+      // NABC spacing (multiple backticks)
+      /``+/,
+      
+      // Laon-specific neume codes as word boundaries
+      /\b(un|oc)\b/,
     ];
 
-    return nabcPatterns.some(pattern => pattern.test(snippet));
+    const isNabc = nabcPatterns.some((pattern) => pattern.test(snippet));
+    return isNabc;
   }
 
   private convertToAST(node: Parser.SyntaxNode, text: string): ASTNode {
