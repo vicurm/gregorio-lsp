@@ -1,5 +1,5 @@
 import Parser from 'tree-sitter';
-import { Range, Position } from 'vscode-languageserver-types';
+import { Range, Position, DiagnosticSeverity } from 'vscode-languageserver-types';
 import { 
   ParseResult, 
   GABCDocument, 
@@ -23,39 +23,84 @@ import {
   NABCFontFamily
 } from '../nabc';
 
-// Placeholder for tree-sitter-gregorio language
-// In a real implementation, this would be the compiled tree-sitter language
-const gregorioLanguage: any = null; // TODO: Load tree-sitter-gregorio
+// Load tree-sitter-gregorio language
+let gregorioLanguage: any = null;
+try {
+  const path = require('path');
+  // Try different paths depending on execution context
+  const possiblePaths = [
+    path.resolve(__dirname, '../../tree-sitter-gregorio/bindings/node'), // compiled context
+    path.resolve(__dirname, '../../../tree-sitter-gregorio/bindings/node'), // test context
+    path.resolve(process.cwd(), '../tree-sitter-gregorio/bindings/node') // direct context
+  ];
+  
+  for (const gregorioPath of possiblePaths) {
+    try {
+      gregorioLanguage = require(gregorioPath);
+      console.log('tree-sitter-gregorio loaded successfully from:', gregorioPath);
+      break;
+    } catch {
+      continue;
+    }
+  }
+  
+  if (!gregorioLanguage) {
+    throw new Error('tree-sitter-gregorio not found in any expected location');
+  }
+} catch (error) {
+  console.warn('tree-sitter-gregorio not available, using fallback parsing:', (error as Error).message);
+  gregorioLanguage = null;
+}
 
 export class GABCParser {
   private parser: Parser | null = null;
   private nabcValidator: NABCValidator | null = null;
+  private treeSitterAvailable: boolean = false;
 
   constructor() {
     try {
       this.parser = new Parser();
       if (gregorioLanguage) {
+        // Debug the language object
+        console.log('Language object keys:', Object.keys(gregorioLanguage));
+        console.log('Language name:', gregorioLanguage.name);
+        
         this.parser.setLanguage(gregorioLanguage);
+        this.treeSitterAvailable = true;
+        console.log('Tree-sitter parser initialized successfully with gregorio language');
+      } else {
+        console.warn('gregorioLanguage not loaded, using fallback parsing');
+        this.treeSitterAvailable = false;
       }
     } catch (error) {
       // Tree-sitter not available, will use fallback parsing
-      console.warn('Tree-sitter not available, using fallback parsing');
+      console.warn('Tree-sitter not available, using fallback parsing:', (error as Error).message);
+      console.warn('Language object:', gregorioLanguage ? 'loaded' : 'null');
+      this.treeSitterAvailable = false;
+      this.parser = null;
     }
   }
 
   public parse(text: string): ParseResult {
     try {
       // If tree-sitter-gregorio is not available, use fallback parsing
-      if (!gregorioLanguage || !this.parser) {
+      if (!this.treeSitterAvailable || !this.parser) {
         return this.fallbackParse(text);
       }
 
       const tree = this.parser.parse(text);
       
-      if (tree.rootNode.hasError) {
+      // Check if tree is null or has parsing errors
+      if (!tree || tree.rootNode.hasError) {
         return {
           success: false,
-          errors: this.extractParseErrors(tree.rootNode, text)
+          errors: tree ? this.extractParseErrors(tree.rootNode, text) : [
+            {
+              message: 'Failed to parse with tree-sitter',
+              range: this.createRange(0, 0, 0, text.length),
+              severity: 1
+            }
+          ]
         };
       }
 
@@ -113,7 +158,12 @@ export class GABCParser {
           const colonIndex = line.indexOf(':');
           if (colonIndex > 0) {
             const name = line.substring(0, colonIndex).trim();
-            const value = line.substring(colonIndex + 1).trim();
+            let value = line.substring(colonIndex + 1).trim();
+            
+            // Remove trailing semicolon if present
+            if (value.endsWith(';')) {
+              value = value.slice(0, -1).trim();
+            }
             
             headers.push({
               type: 'header_field',
@@ -172,12 +222,10 @@ export class GABCParser {
   private parseMusicSection(musicText: string, startLine: number): MusicSection {
     const syllables: Syllable[] = [];
     
-    // Simple regex-based parsing for syllables
-    // This is a simplified implementation - a real parser would be more sophisticated
-    const syllablePattern = /([^()]*)\(([^)]*)\)/g;
+    // Enhanced regex pattern for syllables that handles more complex cases
+    const syllablePattern = /([^()]*?)\(([^)]*)\)/g;
     let match;
     let position = 0;
-    let lineOffset = 0;
     let currentLine = startLine;
 
     while ((match = syllablePattern.exec(musicText)) !== null) {
@@ -185,31 +233,51 @@ export class GABCParser {
       const textContent = match[1].trim();
       const musicContent = match[2];
 
-      // Calculate position
+      // Calculate position with proper line/column tracking
       const matchStart = match.index;
       const matchEnd = matchStart + fullMatch.length;
 
-      // Update line counting
-      const textBefore = musicText.substring(position, matchStart);
-      const newlines = (textBefore.match(/\n/g) || []).length;
-      currentLine += newlines;
-      const lineStart = textBefore.lastIndexOf('\n') + 1;
-      const columnStart = matchStart - lineStart;
+      // Count newlines up to this match
+      const textBefore = musicText.substring(0, matchStart);
+      const newlinesBefore = (textBefore.match(/\n/g) || []).length;
+      const actualLine = startLine + newlinesBefore;
+      
+      // Calculate column position
+      const lastNewlinePos = textBefore.lastIndexOf('\n');
+      const columnStart = lastNewlinePos === -1 ? matchStart : matchStart - lastNewlinePos - 1;
+
+      // Enhanced NABC detection and validation
+      const isNabcContent = this.detectNABC(musicContent);
+      const musicElement = {
+        type: 'music_element' as const,
+        content: musicContent,
+        range: this.createRange(
+          actualLine, 
+          columnStart + (textContent ? textContent.length + 1 : 1), 
+          actualLine, 
+          columnStart + fullMatch.length - 1
+        ),
+        isNabc: isNabcContent
+      };
+
+      // Validate NABC content if detected
+      if (isNabcContent) {
+        const nabcValidation = this.validateNABCMusicContent(musicContent);
+        if (nabcValidation.errors.length > 0) {
+          // Add validation errors to the music element
+          (musicElement as any).validationErrors = nabcValidation.errors;
+        }
+      }
 
       const syllable: Syllable = {
         type: 'syllable',
-        range: this.createRange(currentLine, columnStart, currentLine, columnStart + fullMatch.length),
+        range: this.createRange(actualLine, columnStart, actualLine, columnStart + fullMatch.length),
         text: textContent ? {
           type: 'text_element',
           content: textContent,
-          range: this.createRange(currentLine, columnStart, currentLine, columnStart + textContent.length)
+          range: this.createRange(actualLine, columnStart, actualLine, columnStart + textContent.length)
         } : undefined,
-        music: {
-          type: 'music_element',
-          content: musicContent,
-          range: this.createRange(currentLine, columnStart + textContent.length + 1, currentLine, matchEnd - 1),
-          isNabc: this.detectNABC(musicContent)
-        }
+        music: musicElement
       };
 
       syllables.push(syllable);
@@ -224,15 +292,94 @@ export class GABCParser {
   }
 
   private detectNABC(musicContent: string): boolean {
-    // Detect NABC notation patterns
+    // Enhanced NABC notation detection patterns
     const nabcPatterns = [
-      /[1-4][a-m]/,  // pitch descriptors
-      /n[0-9]/,      // neume descriptors
-      /g[a-z]/,      // glyph descriptors
-      /e[a-z]/       // episema descriptors
+      /[1-4][a-m](?:[~^_]|(?:<sp>)|(?:<\/sp>))*/,  // pitch descriptors with modifiers
+      /n[0-9A-F]+/i,                               // neume descriptors (hex support)
+      /g[a-z]+/i,                                  // glyph descriptors
+      /e[a-z]+/i,                                  // episema descriptors
+      /[+-][0-9]+/,                                // explicit spacing
+      /{[^}]+}/,                                   // markup commands
+      /\[[^\]]+\]/,                                // special annotations
+      /![a-z]+!/i,                                 // special markers
+      /<[^>]+>/                                    // XML-like tags
     ];
 
-    return nabcPatterns.some(pattern => pattern.test(musicContent));
+    // Also check for common NABC sequences
+    const nabcSequences = [
+      /[1-4][a-m][1-4][a-m]/,                     // multiple pitch descriptors
+      /n[0-9A-F]+[1-4][a-m]/i,                    // neume + pitch
+      /g[a-z]+[1-4][a-m]/i,                       // glyph + pitch
+      /@[1-4][a-m]/                               // pitch with clef
+    ];
+
+    return nabcPatterns.some(pattern => pattern.test(musicContent)) ||
+           nabcSequences.some(pattern => pattern.test(musicContent));
+  }
+
+  private validateNABCMusicContent(content: string): { errors: ParseError[] } {
+    const errors: ParseError[] = [];
+    
+    // Validate pitch descriptors
+    const pitchMatches = content.match(/[1-4][a-m]/g);
+    if (pitchMatches) {
+      pitchMatches.forEach(match => {
+        const clef = match[0];
+        const pitch = match[1];
+        
+        // Validate clef range
+        if (!/[1-4]/.test(clef)) {
+          errors.push({
+            message: `Invalid NABC clef '${clef}'. Must be 1-4.`,
+            range: this.createRange(0, 0, 0, 0), // Position would need to be calculated properly
+            severity: DiagnosticSeverity.Error
+          });
+        }
+        
+        // Validate pitch range
+        if (!/[a-m]/.test(pitch)) {
+          errors.push({
+            message: `Invalid NABC pitch '${pitch}'. Must be a-m.`,
+            range: this.createRange(0, 0, 0, 0),
+            severity: DiagnosticSeverity.Error
+          });
+        }
+      });
+    }
+    
+    // Validate neume descriptors
+    const neumeMatches = content.match(/n[0-9A-F]+/gi);
+    if (neumeMatches) {
+      neumeMatches.forEach(match => {
+        const neumeCode = match.substring(1);
+        // Validate hexadecimal format
+        if (!/^[0-9A-F]+$/i.test(neumeCode)) {
+          errors.push({
+            message: `Invalid NABC neume descriptor '${match}'. Code must be hexadecimal.`,
+            range: this.createRange(0, 0, 0, 0),
+            severity: DiagnosticSeverity.Error
+          });
+        }
+      });
+    }
+    
+    // Validate glyph descriptors
+    const glyphMatches = content.match(/g[a-z]+/gi);
+    if (glyphMatches) {
+      glyphMatches.forEach(match => {
+        const glyphCode = match.substring(1);
+        // Basic validation for glyph codes
+        if (!/^[a-z]+$/i.test(glyphCode)) {
+          errors.push({
+            message: `Invalid NABC glyph descriptor '${match}'. Code must be alphabetic.`,
+            range: this.createRange(0, 0, 0, 0),
+            severity: DiagnosticSeverity.Error
+          });
+        }
+      });
+    }
+    
+    return { errors };
   }
 
   public extractNABCConfiguration(ast: GABCDocument): NABCConfiguration {
