@@ -3,6 +3,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { GABCParser } from '../parser/gabc-parser';
 import { GABCAnalyzer } from './gabc-analyzer';
 import { HoverInfo, ASTNode, HeaderField, MusicElement, TextElement } from '../types';
+import { nabcHoverProvider, NABCFontFamily } from '../nabc';
 
 export class GABCHoverProvider {
   constructor(
@@ -282,24 +283,82 @@ export class GABCHoverProvider {
   private analyzeNABCContent(content: string): string {
     let analysis = '**NABC Analysis:**\n\n';
     
-    const pitchDescriptors = content.match(/[1-4][a-m]/g);
-    if (pitchDescriptors) {
-      analysis += `• Pitch descriptors: ${pitchDescriptors.join(', ')}\n`;
+    try {
+      // Use our comprehensive NABC hover provider for detailed analysis
+      nabcHoverProvider.setFont(NABCFontFamily.ST_GALL); // TODO: Get font from context
       
-      const clefs = [...new Set(pitchDescriptors.map(p => p[0]))];
-      analysis += `• Clefs used: ${clefs.join(', ')}\n`;
+      // Try to detect and analyze NABC elements in the content
+      const glyphMatches = content.match(/[a-z]{2}/g);
+      if (glyphMatches) {
+        analysis += '**Detected NABC elements:**\n';
+        const analyzed = new Set<string>();
+        
+        for (const match of glyphMatches) {
+          if (!analyzed.has(match)) {
+            const hoverInfo = nabcHoverProvider.getHoverInfo(match);
+            if (hoverInfo && typeof hoverInfo.contents === 'object' && 'value' in hoverInfo.contents) {
+              const content = (hoverInfo.contents as any).value || '';
+              analysis += `• \`${match}\`: ${content.split('\n')[0].replace(/[#*]/g, '')}\n`;
+              analyzed.add(match);
+            }
+          }
+        }
+      }
+      
+      // Analyze modifiers
+      const modifierMatches = content.match(/[a-z]{2}[SGM\-~>]/g);
+      if (modifierMatches) {
+        analysis += '\n**Glyph modifiers:**\n';
+        for (const match of modifierMatches) {
+          analysis += `• \`${match}\`: Glyph with modifier\n`;
+        }
+      }
+      
+      // Analyze significant letters
+      const significantMatches = content.match(/ls[a-z]+\d/g);
+      if (significantMatches) {
+        analysis += '\n**Significant letters:**\n';
+        for (const match of significantMatches) {
+          const hoverInfo = nabcHoverProvider.getHoverInfo(match);
+          if (hoverInfo && typeof hoverInfo.contents === 'object' && 'value' in hoverInfo.contents) {
+            const content = (hoverInfo.contents as any).value || '';
+            analysis += `• \`${match}\`: ${content.split('\n')[0].replace(/[#*]/g, '')}\n`;
+          }
+        }
+      }
+      
+      // Analyze Tironian notes
+      const tironianMatches = content.match(/lt[a-z]+\d/g);
+      if (tironianMatches) {
+        analysis += '\n**Tironian notes:**\n';
+        for (const match of tironianMatches) {
+          const hoverInfo = nabcHoverProvider.getHoverInfo(match);
+          if (hoverInfo && typeof hoverInfo.contents === 'object' && 'value' in hoverInfo.contents) {
+            const content = (hoverInfo.contents as any).value || '';
+            analysis += `• \`${match}\`: ${content.split('\n')[0].replace(/[#*]/g, '')}\n`;
+          }
+        }
+      }
+      
+      // Analyze spacing
+      const spacingMatches = content.match(/[\/`]+/g);
+      if (spacingMatches) {
+        analysis += '\n**Spacing adjustments:**\n';
+        for (const match of spacingMatches) {
+          const description = match.includes('//') ? 'Large space right' :
+                           match.includes('/') ? 'Inter space right' :
+                           match.includes('``') ? 'Large space left' : 'Inter space left';
+          analysis += `• \`${match}\`: ${description}\n`;
+        }
+      }
+      
+    } catch (error) {
+      // Fallback to basic analysis
+      analysis += 'Basic NABC content analysis:\n';
+      analysis += `• Content length: ${content.length} characters\n`;
+      analysis += `• Contains glyphs: ${/[a-z]{2}/.test(content) ? 'Yes' : 'No'}\n`;
     }
-
-    const neumeDescriptors = content.match(/n[0-9a-f]/g);
-    if (neumeDescriptors) {
-      analysis += `• Neume descriptors: ${neumeDescriptors.join(', ')}\n`;
-    }
-
-    const glyphDescriptors = content.match(/g[a-z]/g);
-    if (glyphDescriptors) {
-      analysis += `• Glyph descriptors: ${glyphDescriptors.join(', ')}\n`;
-    }
-
+    
     return analysis;
   }
 

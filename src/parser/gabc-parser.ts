@@ -15,12 +15,21 @@ import {
   GREGORIO_ERROR_MESSAGES
 } from '../types';
 
+// NABC integration
+import { 
+  NABCValidator, 
+  validateNABCHeader,
+  detectNABCContext,
+  NABCFontFamily
+} from '../nabc';
+
 // Placeholder for tree-sitter-gregorio language
 // In a real implementation, this would be the compiled tree-sitter language
 const gregorioLanguage: any = null; // TODO: Load tree-sitter-gregorio
 
 export class GABCParser {
   private parser: Parser | null = null;
+  private nabcValidator: NABCValidator | null = null;
 
   constructor() {
     try {
@@ -65,8 +74,11 @@ export class GABCParser {
       // Validate characters and notation
       allErrors.push(...this.validateNotation(ast as GABCDocument));
       
+      // Validate warnings (rendering and compatibility issues)
+      allErrors.push(...this.validateWarnings(ast as GABCDocument));
+      
       return {
-        success: allErrors.length === 0,
+        success: allErrors.filter(e => e.severity === 1).length === 0, // Only count errors, not warnings
         ast: ast as GABCDocument,
         errors: allErrors
       };
@@ -136,9 +148,12 @@ export class GABCParser {
       
       // Validate characters and notation
       allErrors.push(...this.validateNotation(ast));
+      
+      // Validate warnings (rendering and compatibility issues)
+      allErrors.push(...this.validateWarnings(ast));
 
       return {
-        success: allErrors.length === 0,
+        success: allErrors.filter(e => e.severity === 1).length === 0, // Only count errors, not warnings
         ast,
         errors: allErrors
       };
@@ -294,6 +309,31 @@ export class GABCParser {
         });
       });
     }
+
+    // Validate NABC headers if present
+    const nabcLinesHeader = ast.headers.find(h => 
+      h.name.toLowerCase() === 'nabc-lines'
+    );
+    if (nabcLinesHeader) {
+      const nabcDiagnostics = validateNABCHeader(
+        nabcLinesHeader.value,
+        nabcLinesHeader.range.start.character
+      );
+      
+      // Convert diagnostics to ParseError format
+      nabcDiagnostics.forEach(diagnostic => {
+        errors.push({
+          message: diagnostic.message,
+          range: this.createRange(
+            diagnostic.range.start.line,
+            diagnostic.range.start.character,
+            diagnostic.range.end.line,
+            diagnostic.range.end.character
+          ),
+          severity: diagnostic.severity === 1 ? 1 : 2 // Error or Warning
+        });
+      });
+    }
     
     return errors;
   }
@@ -301,9 +341,17 @@ export class GABCParser {
   public validateNotation(ast: GABCDocument): ParseError[] {
     const errors: ParseError[] = [];
     
+    // Get NABC configuration
+    const nabcConfig = this.extractNABCConfiguration(ast);
+    
     ast.music.syllables.forEach(syllable => {
       if (syllable.music) {
         const musicContent = syllable.music.content;
+        
+        // Validate NABC content if NABC is enabled
+        if (nabcConfig.enabled) {
+          errors.push(...this.validateNABCContent(syllable, nabcConfig));
+        }
         
         // Validate unrecognized characters in music notation
         const invalidChars = /[^a-zA-Z0-9()\[\]{}|\/\\\-_.'`~<>:;,=+@#$% \t\n\r]/g;
@@ -371,6 +419,222 @@ export class GABCParser {
           }
         }
       }
+    });
+    
+    return errors;
+  }
+
+  private validateWarnings(ast: GABCDocument): ParseError[] {
+    const warnings: ParseError[] = [];
+    
+    // Check for potential rendering and compatibility issues
+    
+    // 1. Check for line breaks or clef changes in first syllable
+    if (ast.music.syllables.length > 0) {
+      // Find the first syllable with actual text (skip clef-only syllables)
+      const firstSyllable = ast.music.syllables.find(s => s.text && s.text.content.trim() !== '') || ast.music.syllables[0];
+      
+      if (firstSyllable.music) {
+        const musicContent = firstSyllable.music.content;
+        
+        // Check for line breaks (z, Z patterns and / patterns)
+        if (/\b[zZ][+-]?\b|\//.test(musicContent)) {
+          warnings.push({
+            message: GREGORIO_ERROR_MESSAGES.LINE_BREAK_NOT_SUPPORTED_FIRST_SYLLABLE,
+            range: firstSyllable.music.range,
+            severity: 1 // Error (this is actually an error, not warning)
+          });
+        }
+        
+        // Check for clef changes in first syllable (but not initial clef)
+        // Look for clef changes that are not at the very beginning
+        const clefChangePattern = /(?<!^[\s\(]*)[cf]b?[1-5]/;
+        if (clefChangePattern.test(musicContent)) {
+          warnings.push({
+            message: GREGORIO_ERROR_MESSAGES.CLEF_CHANGE_NOT_SUPPORTED_FIRST_SYLLABLE,
+            range: firstSyllable.music.range,
+            severity: 1 // Error (this is actually an error, not warning)
+          });
+        }
+      }
+      
+      // Check for elision at the beginning of score text
+      if (firstSyllable.text) {
+        const textContent = firstSyllable.text.content;
+        
+        // Look for elision patterns at the start: <e> or elision markup
+        if (/^[\s]*<e>|^\s*\\textit\{/.test(textContent)) {
+          warnings.push({
+            message: GREGORIO_ERROR_MESSAGES.ELISION_AT_SCORE_INITIAL,
+            range: firstSyllable.text.range,
+            severity: 1 // Error
+          });
+        }
+      }
+    }
+    
+    // 2. Check for potentially problematic ambitus (very large intervals)
+    ast.music.syllables.forEach(syllable => {
+      if (syllable.music) {
+        const musicContent = syllable.music.content;
+        
+        // Look for very large pitch jumps that might cause rendering issues
+        const pitchPattern = /([a-p])[^a-p]*([a-p])/gi;
+        let match;
+        
+        while ((match = pitchPattern.exec(musicContent)) !== null) {
+          const pitch1 = match[1].toLowerCase();
+          const pitch2 = match[2].toLowerCase();
+          
+          const pitchValue1 = pitch1.charCodeAt(0) - 'a'.charCodeAt(0);
+          const pitchValue2 = pitch2.charCodeAt(0) - 'a'.charCodeAt(0);
+          
+          const ambitus = Math.abs(pitchValue2 - pitchValue1);
+          
+          // Warn about very large jumps (more than an octave)
+          if (ambitus > 7) {
+            warnings.push({
+              message: GREGORIO_ERROR_MESSAGES.LARGE_AMBITUS_WARNING,
+              range: syllable.music.range,
+              severity: 2 // Warning
+            });
+            break; // Only warn once per syllable
+          }
+        }
+      }
+    });
+    
+    // 3. Check for style conflicts (simplified detection)
+    ast.music.syllables.forEach(syllable => {
+      if (syllable.text) {
+        const textContent = syllable.text.content;
+        
+        // Look for multiple center markings
+        const centerMatches = textContent.match(/<c>/g);
+        if (centerMatches && centerMatches.length > 1) {
+          warnings.push({
+            message: GREGORIO_ERROR_MESSAGES.SYLLABLE_ALREADY_HAS_CENTER,
+            range: syllable.text.range,
+            severity: 2 // Warning
+          });
+        }
+        
+        // Look for protrusion conflicts (multiple pr tags)
+        const protrusionMatches = textContent.match(/pr\d*/g);
+        if (protrusionMatches && protrusionMatches.length > 1) {
+          warnings.push({
+            message: GREGORIO_ERROR_MESSAGES.SYLLABLE_ALREADY_HAS_PROTRUSION,
+            range: syllable.text.range,
+            severity: 2 // Warning
+          });
+        }
+      }
+    });
+    
+    // 4. Check for unclosed and unmatched tags across all syllables
+    const tagValidationErrors = this.validateTags(ast);
+    warnings.push(...tagValidationErrors);
+    
+    return warnings;
+  }
+
+  private validateTags(ast: GABCDocument): ParseError[] {
+    const errors: ParseError[] = [];
+    
+    // Define valid GABC tags that can be opened and closed
+    const validTags = [
+      'b', 'i', 'sc', 'ul', // Text formatting
+      'v', 'c', 'e', // Special text elements
+      'nlba', // No line break after
+      'pr', // Protrusion
+      'alt' // Alternative text
+    ];
+    
+    // Use a stack to track proper nesting (LIFO - Last In, First Out)
+    const tagStack: Array<{ tag: string; syllable: Syllable; position: number }> = [];
+    
+    // Process each syllable's text content
+    ast.music.syllables.forEach(syllable => {
+      if (!syllable.text) return;
+      
+      const textContent = syllable.text.content;
+      
+      // Find all tag occurrences (both opening and closing)
+      const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
+      let match;
+      
+      while ((match = tagPattern.exec(textContent)) !== null) {
+        const fullTag = match[0];
+        const tagName = match[1].toLowerCase();
+        const isClosing = fullTag.startsWith('</');
+        const position = match.index;
+        
+        // Check if it's a valid tag
+        if (!validTags.includes(tagName)) {
+          continue; // Skip unknown tags (they might be handled elsewhere)
+        }
+        
+        if (isClosing) {
+          // Check if the last opened tag matches this closing tag
+          if (tagStack.length === 0) {
+            // Closing tag without any open tags
+            errors.push({
+              message: GREGORIO_ERROR_MESSAGES.UNMATCHED_CLOSING_TAG.replace('%s', tagName),
+              range: syllable.text.range,
+              severity: 1 // Error
+            });
+          } else {
+            const lastOpenTag = tagStack[tagStack.length - 1];
+            
+            if (lastOpenTag.tag === tagName) {
+              // Perfect match - remove from stack
+              tagStack.pop();
+            } else {
+              // Improper nesting - try to find the matching tag in the stack
+              const matchingIndex = tagStack.findIndex(open => open.tag === tagName);
+              
+              if (matchingIndex === -1) {
+                // No matching opening tag found
+                errors.push({
+                  message: GREGORIO_ERROR_MESSAGES.UNMATCHED_CLOSING_TAG.replace('%s', tagName),
+                  range: syllable.text.range,
+                  severity: 1 // Error
+                });
+              } else {
+                // Found matching tag but not at top of stack - improper nesting
+                // Report all tags that should have been closed first as unclosed
+                for (let i = tagStack.length - 1; i > matchingIndex; i--) {
+                  const unclosedTag = tagStack[i];
+                  errors.push({
+                    message: GREGORIO_ERROR_MESSAGES.UNCLOSED_TAG.replace('%s', unclosedTag.tag),
+                    range: unclosedTag.syllable.text!.range,
+                    severity: 1 // Error
+                  });
+                }
+                
+                // Remove all tags from the matching one onwards
+                tagStack.splice(matchingIndex);
+              }
+            }
+          }
+        } else {
+          // Opening tag - push to stack
+          tagStack.push({
+            tag: tagName,
+            syllable,
+            position
+          });
+        }
+      }
+    });
+    
+    // Check for any remaining unclosed tags
+    tagStack.forEach(openTag => {
+      errors.push({
+        message: GREGORIO_ERROR_MESSAGES.UNCLOSED_TAG.replace('%s', openTag.tag),
+        range: openTag.syllable.text!.range,
+        severity: 1 // Error
+      });
     });
     
     return errors;
@@ -566,5 +830,46 @@ export class GABCParser {
       start: Position.create(startLine, startChar),
       end: Position.create(endLine, endChar)
     };
+  }
+
+
+
+  private validateNABCContent(syllable: any, config: NABCConfiguration): ParseError[] {
+    const errors: ParseError[] = [];
+    
+    if (!syllable.music?.content) return errors;
+    
+    const musicContent = syllable.music.content;
+    
+    // Look for NABC content (indicated by | delimiters)
+    const nabcMatches = musicContent.match(/\|([^|]+)\|/g);
+    
+    if (nabcMatches) {
+      nabcMatches.forEach((match: string) => {
+        const nabcContent = match.slice(1, -1); // Remove | delimiters
+        // Initialize NABC validator if not already done
+        if (!this.nabcValidator) {
+          this.nabcValidator = new NABCValidator({
+            font: NABCFontFamily.ST_GALL,
+            nabcLinesCount: 1,
+            currentLineIndex: 0,
+            documentUri: ''
+          });
+        }
+        
+        const nabcErrors = this.nabcValidator.validateNABCSnippet(nabcContent, 0);
+        
+        // Convert NABC diagnostic to ParseError
+        nabcErrors.forEach((diagnostic: any) => {
+          errors.push({
+            message: diagnostic.message,
+            range: syllable.music.range || this.createRange(0, 0, 0, 0),
+            severity: diagnostic.severity
+          });
+        });
+      });
+    }
+    
+    return errors;
   }
 }

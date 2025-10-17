@@ -154,7 +154,20 @@ export enum ErrorCode {
   
   // Score integrity errors
   INVALID_SCORE = 'invalid_score',
-  FIRST_SYLLABLE_ERROR = 'first_syllable_error'
+  FIRST_SYLLABLE_ERROR = 'first_syllable_error',
+  
+  // Warning types (non-fatal but problematic)
+  MISSING_NAME_WARNING = 'missing_name_warning',
+  DUPLICATE_PROTRUSION = 'duplicate_protrusion',
+  DUPLICATE_CENTER = 'duplicate_center',
+  CENTER_AFTER_PROTRUSION = 'center_after_protrusion',
+  CENTER_WITHOUT_START = 'center_without_start',
+  LARGE_AMBITUS_WARNING = 'large_ambitus_warning',
+  ELISION_AT_SCORE_START = 'elision_at_score_start',
+  LINEBREAK_FIRST_SYLLABLE = 'linebreak_first_syllable',
+  CLEF_CHANGE_FIRST_SYLLABLE = 'clef_change_first_syllable',
+  UNCLOSED_TAG = 'unclosed_tag',
+  UNMATCHED_CLOSING_TAG = 'unmatched_closing_tag'
 }
 
 // Official Gregorio Compiler Error Messages
@@ -189,10 +202,22 @@ export const GREGORIO_ERROR_MESSAGES = {
   CENTER_NOT_ALLOWED_AFTER_PROTRUSION: 'center not allowed after protrusion; ignored',
   NOT_WITHIN_SYLLABLE_CENTER: 'not within a syllable center',
   
-  // Score integrity errors
+  // Protrusion warnings
+  SYLLABLE_ALREADY_HAS_PROTRUSION: 'syllable already has protrusion; pr tag ignored',
+  CLOSING_CENTER_BEFORE_PROTRUSION: 'closing open syllable center before protrusion',
+  
+  // Rendering and compatibility warnings
+  LARGE_AMBITUS_WARNING: 'Encountered the need to switch DET_END_OF_CURRENT to DET_END_OF_BOTH because of overly large ambitus',
+  
+  // Score integrity errors  
   INVALID_SCORE: 'unable to determine a valid score from file',
   LINE_BREAK_NOT_SUPPORTED_FIRST_SYLLABLE: 'line break is not supported on the first syllable',
   CLEF_CHANGE_NOT_SUPPORTED_FIRST_SYLLABLE: 'clef change is not supported on the first syllable',
+  ELISION_AT_SCORE_INITIAL: 'score initial may not be in an elision',
+  
+  // Tag validation errors
+  UNCLOSED_TAG: 'unclosed tag: <%s>',
+  UNMATCHED_CLOSING_TAG: 'unmatched closing tag: </%s>',
 } as const;
 
 export interface GABCError extends ParseError {

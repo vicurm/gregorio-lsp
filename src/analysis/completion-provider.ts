@@ -3,6 +3,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { GABCParser } from '../parser/gabc-parser';
 import { GABCAnalyzer } from './gabc-analyzer';
 import { CompletionContext } from '../types';
+import { nabcCompletionProvider, NABCFontFamily } from '../nabc';
 
 export class GABCCompletionProvider {
   constructor(
@@ -164,36 +165,35 @@ export class GABCCompletionProvider {
   }
 
   private getNABCCompletions(): CompletionItem[] {
-    const pitchDescriptors = [];
-    for (let clef = 1; clef <= 4; clef++) {
-      for (let pitch of 'abcdefghijklm') {
-        pitchDescriptors.push({
-          label: `${clef}${pitch}`,
-          kind: CompletionItemKind.Value,
-          detail: `NABC pitch: clef ${clef}, pitch ${pitch}`,
-          data: { type: 'nabc-glyph' }
-        });
-      }
+    // Use our comprehensive NABC completion provider
+    try {
+      // TODO: Extract font from document context
+      nabcCompletionProvider.setFont(NABCFontFamily.ST_GALL);
+      return nabcCompletionProvider.getAllCompletions();
+    } catch (error) {
+      // Fallback to basic NABC completions
+      return this.getBasicNABCCompletions();
     }
+  }
 
-    const neumeDescriptors = [];
-    for (let i = 0; i <= 15; i++) {
-      neumeDescriptors.push({
-        label: `n${i.toString(16)}`,
-        kind: CompletionItemKind.Function,
-        detail: `NABC neume descriptor ${i.toString(16)}`,
-        data: { type: 'nabc-glyph' }
-      });
-    }
+  private getBasicNABCCompletions(): CompletionItem[] {
+    // Fallback basic NABC glyphs
+    const basicGlyphs = [
+      { code: 'vi', name: 'virga' },
+      { code: 'pu', name: 'punctum' },
+      { code: 'ta', name: 'tractulus' },
+      { code: 'cl', name: 'clivis' },
+      { code: 'pe', name: 'pes' },
+      { code: 'po', name: 'porrectus' },
+      { code: 'to', name: 'torculus' }
+    ];
 
-    const glyphDescriptors = 'abcdefghijklmnopqrstuvwxyz'.split('').map(glyph => ({
-      label: `g${glyph}`,
-      kind: CompletionItemKind.Class,
-      detail: `NABC glyph descriptor ${glyph}`,
+    return basicGlyphs.map(glyph => ({
+      label: glyph.code,
+      kind: CompletionItemKind.Function,
+      detail: glyph.name,
       data: { type: 'nabc-glyph' }
     }));
-
-    return [...pitchDescriptors, ...neumeDescriptors, ...glyphDescriptors];
   }
 
   private getTextCompletions(): CompletionItem[] {
