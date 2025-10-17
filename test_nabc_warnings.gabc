@@ -1,0 +1,13 @@
+name: Test NABC Warnings;
+nabc-lines: 2;
+font-family: gregall;
+%%
+
+(c4)
+A(|vi////|)
+B(|pulti5|)  % Tironian with invalid position 5
+C(|ta->>>|)  % Excessive modifiers  
+D(|vilsa1lsb1|)  % Duplicate positions in significant letters
+E(|pe///////////|)  % Excessive spacing
+(|ltdo3|)  % Tironian in non-Laon font
+(z)
