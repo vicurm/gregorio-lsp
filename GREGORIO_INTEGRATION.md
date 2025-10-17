@@ -204,3 +204,140 @@ The LSP now implements **25+ official Gregorio compiler error messages** coverin
 - **Structure**: Brackets, slurs, and score integrity
 
 Each error message matches the exact text from the official Gregorio compiler source code, ensuring complete consistency for developers working with GABC files.
+
+## Warning Detection
+
+The LSP also implements comprehensive warning detection for non-fatal rendering issues that don't prevent compilation but may cause display problems or unexpected behavior. These warnings are categorized with severity level 2 (warnings) vs severity level 1 (errors).
+
+### Implemented Warning Types
+
+#### 1. Large Ambitus Warnings
+Detects pitch jumps larger than an octave within single syllables that may cause rendering difficulties:
+
+```gabc
+name: Large Jump;
+%%
+(c4) Ky(g p)ri(h)e.  // Warning: g to p is 9 semitones
+```
+
+**Message**: `"Encountered the need to switch DET_END_OF_CURRENT to DET_END_OF_BOTH because of overly large ambitus"`
+
+#### 2. Style Conflicts
+Detects conflicting style markings that may cause unexpected rendering:
+
+**Multiple Centers**:
+```gabc
+name: Style Conflict;
+%%
+(c4) Ky<c>ri<c>e(g)son.  // Warning: multiple center markings
+```
+
+**Message**: `"syllable already has center; ignoring additional center"`
+
+**Multiple Protrusions**:
+```gabc
+name: Protrusion Conflict;
+%%
+(c4) Kypr1(g)ripr2(h)e.  // Warning: multiple protrusion markings
+```
+
+**Message**: `"syllable already has protrusion; ignoring additional protrusion"`
+
+#### 3. First Syllable Restrictions (Errors)
+These are actually errors (severity 1) that prevent proper rendering:
+
+**Line Breaks**:
+```gabc
+name: Line Break Error;
+%%
+(c4) Ky(g/h)ri(i)e.  // Error: line break in first syllable
+```
+
+**Message**: `"line break is not supported on the first syllable"`
+
+**Clef Changes**:
+```gabc
+name: Clef Change Error;
+%%
+(c4) Ky(g f4 h)ri(i)e.  // Error: clef change in first syllable
+```
+
+**Message**: `"clef change is not supported on the first syllable"`
+
+**Elision at Score Initial**:
+```gabc
+name: Elision Error;
+%%
+(c4) <e>Ky(g)ri(h)e.  // Error: elision at beginning
+```
+
+**Message**: `"elision at the initial of a score is not supported"`
+
+#### 4. Tag Validation (Errors)
+Detects unclosed and improperly nested HTML-style tags in GABC text:
+
+**Unclosed Tags**:
+```gabc
+name: Unclosed Tag;
+%%
+(c4) Ky<b>ri(g)e.  // Error: <b> tag never closed
+```
+
+**Message**: `"unclosed tag: <b>"`
+
+**Unmatched Closing Tags**:
+```gabc
+name: Unmatched Closing;
+%%
+(c4) Ky</b>ri(g)e.  // Error: </b> without opening <b>
+```
+
+**Message**: `"unmatched closing tag: </b>"`
+
+**Improper Nesting**:
+```gabc
+name: Cross Nested;
+%%
+(c4) Ky<b>ri<i>e</b>le</i>(g)son.  // Error: cross-nested tags
+```
+
+**Messages**: 
+- `"unclosed tag: <i>"` 
+- `"unmatched closing tag: </i>"`
+
+**Supported Tags**: `b`, `i`, `sc`, `ul`, `v`, `c`, `e`, `nlba`, `pr`, `alt`
+
+### Warning Detection Logic
+
+The warning validation system:
+
+1. **Smart First Syllable Detection**: Skips clef-only syllables to find the actual first text syllable
+2. **Pattern-Based Detection**: Uses regex patterns to identify problematic constructs
+3. **Stack-Based Tag Validation**: Implements proper nesting validation using LIFO (Last In, First Out) stack
+4. **Severity Classification**: Distinguishes between warnings (rendering issues) and errors (compilation failures)
+5. **Performance Optimized**: Only validates once per syllable to avoid duplicate warnings
+
+### Integration with LSP
+
+Warnings are integrated into the main validation pipeline alongside:
+- Header validation
+- NABC alternation validation  
+- Character and notation validation
+- Tag structure validation
+- Official Gregorio error message integration
+
+All validation results are returned as `ParseError` objects with appropriate severity levels for proper IDE integration.
+
+### Tag Validation Features
+
+The tag validation system provides:
+
+1. **Comprehensive Tag Support**: Validates common GABC formatting tags (`b`, `i`, `sc`, `ul`) and special tags (`nlba`, `pr`, `alt`, `v`, `c`, `e`)
+
+2. **Proper Nesting Detection**: Uses stack-based algorithm to detect cross-nested tags and ensure proper LIFO closing order
+
+3. **Cross-Syllable Validation**: Tags can span multiple syllables and are tracked across the entire score
+
+4. **Error Classification**: All tag errors are classified as severity 1 (errors) since improper tag structure can break rendering
+
+5. **Performance Optimized**: Single-pass validation that processes all syllables efficiently without redundant checks
