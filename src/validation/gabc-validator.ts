@@ -99,11 +99,12 @@ export class GABCValidator {
 
     switch (name) {
       case 'nabc-lines':
-        if (!['0', '1'].includes(value)) {
+        const nabcValue = parseInt(value, 10);
+        if (isNaN(nabcValue) || nabcValue < 0) {
           diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range: header.range,
-            message: `Invalid nabc-lines value: ${value}. Expected '0' or '1'`,
+            message: `Invalid nabc-lines value: ${value}. Expected non-negative integer (0, 1, 2, ...)`,
             source: 'gregorio-lsp'
           });
         }

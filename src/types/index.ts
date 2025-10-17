@@ -126,7 +126,9 @@ export enum ErrorCode {
   INVALID_NABC_GLYPH = 'invalid_nabc_glyph',
   MISSING_TEXT = 'missing_text',
   MISSING_MUSIC = 'missing_music',
-  INCONSISTENT_ALTERNATION = 'inconsistent_alternation'
+  INCONSISTENT_ALTERNATION = 'inconsistent_alternation',
+  INVALID_PIPE_WITHOUT_NABC = 'invalid_pipe_without_nabc',
+  NABC_IN_GABC_ONLY_MODE = 'nabc_in_gabc_only_mode'
 }
 
 export interface GABCError extends ParseError {

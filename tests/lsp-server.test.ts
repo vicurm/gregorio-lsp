@@ -30,7 +30,7 @@ nabc-lines: 2;
 
   test('should extract NABC configuration', () => {
     const gabcContent = `name: Test;
-nabc-lines: 1 3 5;
+nabc-lines: 2;
 %%
 (c4) Content`;
 
@@ -42,7 +42,7 @@ nabc-lines: 1 3 5;
 
       expect(nabcConfig).toBeDefined();
       expect(nabcConfig.enabled).toBe(true);
-      expect(nabcConfig.headerValue).toBe('1 3 5;');
+      expect(nabcConfig.headerValue).toBe('2;');
     }
   });
 

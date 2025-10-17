@@ -203,43 +203,159 @@ export class GABCParser {
       };
     }
 
-    const value = nabcLinesHeader.value.toLowerCase();
+    const value = parseInt(nabcLinesHeader.value, 10);
     
     return {
-      enabled: true,
+      enabled: value > 0,
       headerValue: nabcLinesHeader.value,
-      alternationPattern: value === '1' ? 'nabc' : 'gabc'
+      alternationPattern: value > 0 ? 'nabc' : 'gabc'
     };
   }
 
   public validateAlternation(ast: GABCDocument, nabcConfig: NABCConfiguration): ParseError[] {
     const errors: ParseError[] = [];
     
-    if (!nabcConfig.enabled) {
-      return errors;
-    }
-
-    let expectedNabc = nabcConfig.alternationPattern === 'nabc';
-
+    const alternationPeriod = parseInt((nabcConfig.headerValue || '0').replace(/;$/, ''), 10);
+    
     for (const syllable of ast.music.syllables) {
       if (syllable.music) {
-        const isNabc = syllable.music.isNabc || false;
+        const noteGroups = this.parseNoteGroups(syllable.music.content);
         
-        if (isNabc !== expectedNabc) {
-          errors.push({
-            message: `Expected ${expectedNabc ? 'NABC' : 'GABC'} notation but found ${isNabc ? 'NABC' : 'GABC'}`,
-            range: syllable.music.range,
-            severity: 1, // Error
-            code: ErrorCode.ALTERNATION_VIOLATION
-          } as any);
+        // Special case: when nabc-lines is absent/0, "|" characters are invalid
+        if (alternationPeriod === 0) {
+          for (const group of noteGroups) {
+            if (group.snippets.length > 1) {
+              errors.push({
+                message: `Pipe character "|" detected but no nabc-lines header specified. All content should be GABC without alternation.`,
+                range: syllable.music.range,
+                severity: 1, // Error
+                code: ErrorCode.INVALID_PIPE_WITHOUT_NABC
+              } as any);
+            }
+            
+            // Also check for NABC patterns in GABC-only mode
+            for (const snippet of group.snippets) {
+              if (this.isNabcSnippet(snippet)) {
+                errors.push({
+                  message: `NABC notation detected in GABC-only mode. Add nabc-lines header to enable NABC alternation.`,
+                  range: syllable.music.range,
+                  severity: 1, // Error
+                  code: ErrorCode.NABC_IN_GABC_ONLY_MODE
+                } as any);
+              }
+            }
+          }
+        } else {
+          // Normal alternation validation when nabc-lines is specified
+          for (const group of noteGroups) {
+            const snippets = group.snippets;
+            
+            for (let i = 0; i < snippets.length; i++) {
+              const shouldBeNabc = this.shouldSnippetBeNabc(i, alternationPeriod);
+              const isNabc = this.isNabcSnippet(snippets[i]);
+              
+              if (shouldBeNabc !== isNabc) {
+                errors.push({
+                  message: `Expected ${shouldBeNabc ? 'NABC' : 'GABC'} notation but found ${isNabc ? 'NABC' : 'GABC'} in group snippet ${i + 1}`,
+                  range: syllable.music.range,
+                  severity: 1, // Error
+                  code: ErrorCode.ALTERNATION_VIOLATION
+                } as any);
+              }
+            }
+          }
         }
-
-        // Alternate for next syllable
-        expectedNabc = !expectedNabc;
       }
     }
 
     return errors;
+  }
+
+  private parseNoteGroups(musicContent: string): { snippets: string[] }[] {
+    // The musicContent passed here is already the content of a single group (inside parentheses)
+    // We need to split it by "|" to get individual snippets
+    const groups: { snippets: string[] }[] = [];
+    
+    let snippets: string[];
+    
+    if (musicContent.includes('|')) {
+      // Split by | to get individual snippets within the group
+      snippets = musicContent.split('|');
+    } else {
+      // Single snippet in this group
+      snippets = [musicContent];
+    }
+    
+    groups.push({ snippets });
+    
+    return groups;
+  }
+
+  private parseSnippets(musicContent: string): string[] {
+    // Legacy method - extract all snippets across all groups
+    // Used for compatibility with existing code
+    const snippets: string[] = [];
+    const groups = this.parseNoteGroups(musicContent);
+    
+    for (const group of groups) {
+      snippets.push(...group.snippets);
+    }
+    
+    return snippets;
+  }
+
+  private shouldSnippetBeNabc(snippetIndex: number, alternationPeriod: number): boolean {
+    // When nabc-lines is absent or 0, all content is GABC and "|" characters are invalid
+    if (alternationPeriod === 0) {
+      return false; // All content treated as single GABC snippet
+    }
+    
+    // Per-group alternation logic (nabc-lines starts from 1):
+    // - Snippet 0 (first in any group): always GABC
+    // - For nabc-lines: 1 -> GABC, NABC, GABC, NABC, ... (alternates every 1)
+    // - For nabc-lines: 2 -> GABC, NABC, NABC, GABC, GABC, NABC, NABC, ... (alternates every 2)
+    // - For nabc-lines: N -> First snippet GABC, then alternating blocks of N
+    
+    if (snippetIndex === 0) {
+      return false; // First snippet in any group is always GABC
+    }
+    
+    // Calculate which block we're in after the first snippet
+    // For alternationPeriod=1: blocks are size 1, so index 1->NABC, 2->GABC, 3->NABC...
+    // For alternationPeriod=2: blocks are size 2, so index 1,2->NABC, 3,4->GABC, 5,6->NABC...
+    const blockIndex = Math.floor((snippetIndex - 1) / alternationPeriod);
+    return blockIndex % 2 === 0; // Even blocks (0, 2, 4...) are NABC, odd blocks (1, 3, 5...) are GABC
+  }
+
+  private isNabcSnippet(snippet: string): boolean {
+    if (!snippet || snippet.trim() === '') {
+      return false; // Empty snippets are neutral
+    }
+    
+    // NABC snippets contain specific NABC notation patterns:
+    // - Descriptors like 'peGlsa6tohl', 'toppt2lss2lsim2', 'qlppn1'
+    // - Modifiers like 'un', 'ta', 'vi', etc. 
+    // - NABC-specific symbols: backticks, underscores, certain combinations
+    
+    const nabcPatterns = [
+      /[0-9]/,                    // Contains digits
+      /n[0-9a-f]/,               // NABC pitch descriptors (n0-nf)
+      /g[a-z]/,                  // NABC glyph descriptors (ga-gz)
+      /[a-z]{2,}[0-9]/,         // Long descriptors with numbers (peGlsa6tohl)
+      /[a-z]+pt[0-9]/,          // Point descriptors (toppt2)
+      /lss?[0-9]/,              // Line spacing (lss2, ls3)
+      /lsim[0-9]/,              // Line simulation (lsim2)
+      /qlhh/,                   // NABC quilisma patterns
+      /talse[0-9]/,             // NABC ornament descriptors
+      /clShi|clhi/,             // NABC clivis patterns
+      /st>hi/,                  // NABC step patterns
+      /vi>[0-9]/,               // NABC virga patterns
+      /pf[0-9]/,                // NABC punctum patterns
+      /``+/,                    // Multiple backticks
+      /un|ta|vi(?![a-z])/,      // Common NABC modifiers (but not 'via', 'vir', etc.)
+    ];
+
+    return nabcPatterns.some(pattern => pattern.test(snippet));
   }
 
   private convertToAST(node: Parser.SyntaxNode, text: string): ASTNode {

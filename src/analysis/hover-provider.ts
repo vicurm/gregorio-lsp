@@ -225,13 +225,21 @@ export class GABCHoverProvider {
   }
 
   private getNabcLinesDescription(value: string): string {
-    switch (value) {
-      case '0':
-        return 'NABC alternation disabled. All notation uses GABC format.';
-      case '1':
-        return 'NABC alternation enabled. Notation alternates between GABC and NABC formats starting with NABC.';
+    const numValue = parseInt(value, 10);
+    
+    if (isNaN(numValue) || numValue < 0) {
+      return `Invalid nabc-lines value: ${value}. Expected non-negative integer.`;
+    }
+    
+    switch (numValue) {
+      case 0:
+        return 'NABC alternation disabled. All snippets use GABC format.';
+      case 1:
+        return 'NABC alternation enabled. Snippets alternate between GABC and NABC (GABC, NABC, GABC, NABC, ...).';
+      case 2:
+        return 'NABC alternation with period 2. First snippet GABC, then alternating every 2 snippets.';
       default:
-        return `Non-standard nabc-lines value: ${value}`;
+        return `NABC alternation with period ${numValue}. First snippet GABC, then alternating every ${numValue} snippets.`;
     }
   }
 

@@ -227,7 +227,7 @@ export class GABCCompletionProvider {
       'name': 'The name of the chant or piece. This is typically displayed as the title.',
       'office-part': 'The part of the liturgical office (e.g., Antiphon, Responsory, Hymn).',
       'mode': 'The Gregorian mode of the chant (1-8 or I-VIII).',
-      'nabc-lines': 'Controls NABC alternation pattern. 0 = GABC only, 1 = alternating GABC/NABC.',
+      'nabc-lines': 'Controls NABC snippet alternation pattern. 0 = GABC only, N > 0 = alternating period N.',
       'initial-style': 'Style of the initial letter. 0 = normal, 1 = large, 2 = two-line.',
       'annotation': 'Annotation text displayed above the staff.'
     };
