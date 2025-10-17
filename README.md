@@ -1,90 +1,90 @@
 # Gregorio LSP Server
 
-Um servidor LSP (Language Server Protocol) completo para arquivos GABC (Gregorian chant notation) que implementa análise semântica avançada, incluindo suporte para alternação NABC-lines.
+A complete Language Server Protocol implementation for GABC (Gregorian chant notation) files that provides advanced semantic analysis, including support for nabc-lines alternation.
 
-## Funcionalidades
+## Features
 
-### 🎵 Análise Semântica Completa
-- **Parsing estrutural**: Análise sintática completa de arquivos GABC/NABC
-- **Validação de headers**: Verificação de campos obrigatórios e valores válidos
-- **Análise de notação musical**: Validação de neumas GABC e glífos NABC
-- **Estrutura de sílabas**: Verificação de correspondência entre texto e música
+### 🎵 Complete Semantic Analysis
+- **Structural parsing**: Complete syntactic analysis of GABC/NABC files
+- **Header validation**: Verification of required fields and valid values
+- **Musical notation analysis**: Validation of GABC neumes and NABC glyphs
+- **Syllable structure**: Verification of text-music correspondence
 
-### 🔄 Suporte para NABC-lines
-- **Alternação dinâmica**: Suporte completo para alternação GABC/NABC baseada no header `nabc-lines`
-- **Validação contextual**: Verificação de padrões de alternação corretos
-- **Detecção automática**: Identificação automática de notação NABC vs GABC
+### 🔄 NABC-lines Support
+- **Dynamic alternation**: Complete support for GABC/NABC alternation based on `nabc-lines` header
+- **Contextual validation**: Verification of correct alternation patterns
+- **Automatic detection**: Automatic identification of NABC vs GABC notation
 
-### 💡 Funcionalidades de IDE
-- **Autocompletar inteligente**: Sugestões contextuais para headers, neumas e texto
-- **Hover informativo**: Informações detalhadas sobre elementos GABC/NABC
-- **Diagnósticos em tempo real**: Detecção de erros sintáticos e semânticos
-- **Análise de padrões melódicos**: Identificação de padrões ascendentes, descendentes e repetitivos
+### 💡 IDE Features
+- **Intelligent auto-completion**: Contextual suggestions for headers, neumes, and text
+- **Informative hover**: Detailed information about GABC/NABC elements
+- **Real-time diagnostics**: Detection of syntactic and semantic errors
+- **Melodic pattern analysis**: Identification of ascending, descending, and repetitive patterns
 
-## Arquitetura
+## Architecture
 
-### Componentes Principais
+### Main Components
 
 #### GABCParser (`src/parser/gabc-parser.ts`)
-- Parser principal com fallback para parsing regex-based
-- Integração com tree-sitter-gregorio (quando disponível)
-- Detecção automática de notação NABC
-- Extração e validação de configuração NABC-lines
+- Main parser with fallback to regex-based parsing
+- Integration with tree-sitter-gregorio (when available)
+- Automatic NABC notation detection
+- NABC-lines configuration extraction and validation
 
 #### GABCValidator (`src/validation/gabc-validator.ts`)
-- Validação semântica completa
-- Verificação de headers obrigatórios e valores válidos
-- Validação de alternação NABC-lines
-- Análise de notação musical GABC/NABC
+- Complete semantic validation
+- Required headers and valid values verification
+- NABC-lines alternation validation
+- GABC/NABC musical notation analysis
 
 #### GABCAnalyzer (`src/analysis/gabc-analyzer.ts`)
-- Análise semântica avançada
-- Extração de estatísticas e padrões
-- Análise contextual para autocompletar
-- Validação de consistência de alternação
+- Advanced semantic analysis
+- Statistics and pattern extraction
+- Contextual analysis for auto-completion
+- Alternation consistency validation
 
 #### GABCCompletionProvider (`src/analysis/completion-provider.ts`)
-- Autocompletar contextual para headers
-- Sugestões de neumas GABC (a-m, ~, v, <, >, etc.)
-- Sugestões de glífos NABC (1a-4m, n0-nf, ga-gz)
-- Snippets para formatação de texto
+- Contextual auto-completion for headers
+- GABC neume suggestions (a-m, ~, v, <, >, etc.)
+- NABC glyph suggestions (1a-4m, n0-nf, ga-gz)
+- Text formatting snippets
 
 #### GABCHoverProvider (`src/analysis/hover-provider.ts`)
-- Informações detalhadas sobre headers
-- Análise de conteúdo musical
-- Documentação de modos gregorianos
-- Explicação de padrões NABC
+- Detailed header information
+- Musical content analysis
+- Gregorian mode documentation
+- NABC pattern explanations
 
-## Instalação e Uso
+## Installation and Usage
 
-### Requisitos
+### Requirements
 - Node.js 16+
 - TypeScript 4.9+
-- VS Code (para uso como extensão)
+- VS Code (for use as extension)
 
-### Compilação
+### Build
 ```bash
 npm install
 npm run compile
 ```
 
-### Execução
+### Run
 ```bash
 npm start
 ```
 
-### Desenvolvimento
+### Development
 ```bash
-npm run watch    # Compilação em modo watch
-npm run lint     # Verificação de código
-npm run test     # Execução de testes (quando implementados)
+npm run watch    # Watch mode compilation
+npm run lint     # Code linting
+npm run test     # Run tests
 ```
 
-## Configuração
+## Configuration
 
-### Configurações do LSP
+### LSP Settings
 
-O servidor aceita as seguintes configurações via `workspace/configuration`:
+The server accepts the following settings via `workspace/configuration`:
 
 ```json
 {
@@ -97,15 +97,15 @@ O servidor aceita as seguintes configurações via `workspace/configuration`:
 }
 ```
 
-#### Parâmetros:
-- `maxNumberOfProblems`: Número máximo de diagnósticos a serem reportados
-- `enableSemanticValidation`: Habilita validação semântica completa
-- `enableNabcLinesValidation`: Habilita validação de alternação NABC-lines
-- `strictAlternationChecking`: Modo rigoroso para verificação de alternação (erro vs warning)
+#### Parameters:
+- `maxNumberOfProblems`: Maximum number of diagnostics to be reported
+- `enableSemanticValidation`: Enable complete semantic validation
+- `enableNabcLinesValidation`: Enable NABC-lines alternation validation
+- `strictAlternationChecking`: Strict mode for alternation checking (error vs warning)
 
-## Exemplos de Uso
+## Usage Examples
 
-### Arquivo GABC Básico
+### Basic GABC File
 ```gabc
 name: Kyrie Eleison;
 office-part: Ordinary;
@@ -114,9 +114,9 @@ mode: VI;
 Ky(f)ri(gh)e(h) e(h)le(gf)i(g)son.(f.)
 ```
 
-### Arquivo com NABC-lines
+### File with NABC-lines
 ```gabc
-name: Kyrie com NABC;
+name: Kyrie with NABC;
 office-part: Ordinary;
 mode: VI;
 nabc-lines: 1;
@@ -125,87 +125,87 @@ Ky(f)ri(gh)e(h) *() e(h)le(gf)i(g)son.(f.) (::)
 Chri(1h) n2g ste(2i) e(h)le(gf)i(g)son.(f.)
 ```
 
-### Headers Suportados
+### Supported Headers
 
-#### Headers Obrigatórios/Recomendados:
-- `name`: Nome da peça
-- `office-part`: Parte litúrgica (Antiphon, Responsory, etc.)
-- `mode`: Modo gregoriano (1-8, I-VIII)
+#### Required/Recommended Headers:
+- `name`: Piece name
+- `office-part`: Liturgical part (Antiphon, Responsory, etc.)
+- `mode`: Gregorian mode (1-8, I-VIII)
 
-#### Headers Especiais:
-- `nabc-lines`: Controla alternação GABC/NABC (0 = desabilitado, 1 = habilitado)
-- `initial-style`: Estilo da letra inicial (0 = normal, 1 = grande, 2 = duas linhas)
-- `annotation`: Anotação exibida acima da partitura
+#### Special Headers:
+- `nabc-lines`: Controls GABC/NABC alternation (0 = disabled, 1 = enabled)
+- `initial-style`: Initial letter style (0 = normal, 1 = large, 2 = two-line)
+- `annotation`: Annotation displayed above the score
 
-## Limitações Conhecidas
+## Known Limitations
 
-1. **Tree-sitter Integration**: Atualmente usa fallback parsing. A integração completa com tree-sitter-gregorio está planejada para versões futuras.
+1. **Tree-sitter Integration**: Currently uses fallback parsing. Complete integration with tree-sitter-gregorio is planned for future versions.
 
-2. **Document Management**: O sistema de gerenciamento de documentos é simplificado. Uma implementação completa integraria com o VS Code document manager.
+2. **Document Management**: The document management system is simplified. A complete implementation would integrate with VS Code document manager.
 
-3. **Performance**: Para arquivos muito grandes, o parsing pode ser lento. Otimizações de performance estão planejadas.
+3. **Performance**: For very large files, parsing can be slow. Performance optimizations are planned.
 
-## Desenvolvimento Futuro
+## Future Development
 
-### Funcionalidades Planejadas:
-- [ ] Integração completa com tree-sitter-gregorio
-- [ ] Sistema de cache para melhor performance
-- [ ] Suporte para múltiplos arquivos GABC
-- [ ] Validação de referências cruzadas
-- [ ] Análise harmônica avançada
-- [ ] Exportação para diferentes formatos
+### Planned Features:
+- [ ] Complete integration with tree-sitter-gregorio
+- [ ] Cache system for better performance
+- [ ] Support for multiple GABC files
+- [ ] Cross-reference validation
+- [ ] Advanced harmonic analysis
+- [ ] Export to different formats
 
-### Melhorias de IDE:
-- [ ] Code actions para correção automática
-- [ ] Refatoração de código
-- [ ] Navegação de símbolos
-- [ ] Outline view para estrutura do documento
-- [ ] Integração com preview visual
+### IDE Improvements:
+- [ ] Code actions for automatic correction
+- [ ] Code refactoring
+- [ ] Symbol navigation
+- [ ] Outline view for document structure
+- [ ] Visual preview integration
 
-## Integração com Editores
+## Editor Integration
 
 ### VS Code
-O LSP pode ser integrado ao VS Code através de uma extensão que:
-1. Registra o servidor LSP
-2. Configura associação de arquivos `.gabc`
-3. Fornece configurações personalizáveis
+The LSP can be integrated with VS Code through an extension that:
+1. Registers the LSP server
+2. Configures `.gabc` file association
+3. Provides customizable settings
 
-### Outros Editores
-O protocolo LSP é suportado por:
-- Vim/Neovim (via plugins LSP)
+### Other Editors
+The LSP protocol is supported by:
+- Vim/Neovim (via LSP plugins)
 - Emacs (via lsp-mode)
 - Sublime Text
 - Atom
-- E muitos outros
+- And many others
 
-## Arquivos de Teste
+## Test Files
 
-O diretório `examples/` contém arquivos de teste para validar funcionalidades:
-- `test.gabc`: Exemplo básico com NABC-lines
-- Planejados: exemplos para cada funcionalidade específica
+The `examples/` directory contains test files to validate functionality:
+- `test.gabc`: Basic example with NABC-lines
+- Planned: examples for each specific functionality
 
-## Contribuição
+## Contributing
 
-Para contribuir com o projeto:
-1. Fork o repositório
-2. Crie uma branch para sua funcionalidade
-3. Implemente mudanças com testes
-4. Envie pull request
+To contribute to the project:
+1. Fork the repository
+2. Create a branch for your feature
+3. Implement changes with tests
+4. Submit pull request
 
-### Diretrizes de Desenvolvimento:
-- Seguir convenções TypeScript
-- Documentar APIs públicas
-- Incluir testes para novas funcionalidades
-- Manter compatibilidade com LSP specification
+### Development Guidelines:
+- Follow TypeScript conventions
+- Document public APIs
+- Include tests for new features
+- Maintain compatibility with LSP specification
 
-## Licença
+## License
 
-Este projeto está licenciado sob a MIT License - veja o arquivo LICENSE para detalhes.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Relacionados
+## Related Projects
 
-Este projeto faz parte do ecossistema Gregorio:
-- [gregorio.nvim](../gregorio.nvim/): Plugin Vim/Neovim para GABC
-- [tree-sitter-gregorio](../tree-sitter-gregorio/): Grammar tree-sitter para GABC
-- [vscode-gregorio](../vscode-gregorio/): Extensão VS Code para GABC
-- [gregorio-mode](../gregorio-mode/): Modo Emacs para GABC
+This project is part of the Gregorio ecosystem:
+- [gregorio.nvim](../gregorio.nvim/): Vim/Neovim plugin for GABC
+- [tree-sitter-gregorio](../tree-sitter-gregorio/): Tree-sitter grammar for GABC
+- [vscode-gregorio](../vscode-gregorio/): VS Code extension for GABC
+- [gregorio-mode](../gregorio-mode/): Emacs mode for GABC
