@@ -90,4 +90,55 @@ nabc-lines: 2;
     );
     expect(pipeError).toBeDefined();
   });
+
+  test('should validate header requirements', async () => {
+    // Test missing name header
+    const gabcMissingName = `mode: 1;
+%%
+(f3) Test(f) content.`;
+
+    const parseResult = parser.parse(gabcMissingName);
+    
+    expect(parseResult.success).toBe(false);
+    expect(parseResult.errors.length).toBeGreaterThan(0);
+    
+    const nameError = parseResult.errors.find(e => 
+      e.message.includes('no name specified')
+    );
+    expect(nameError).toBeDefined();
+  });
+
+  test('should detect duplicate headers', async () => {
+    const gabcDuplicateHeaders = `name: Test;
+name: Another Test;
+mode: 1;
+%%
+(f3) Test(f) content.`;
+
+    const parseResult = parser.parse(gabcDuplicateHeaders);
+    
+    expect(parseResult.success).toBe(false);
+    expect(parseResult.errors.length).toBeGreaterThan(0);
+    
+    const duplicateError = parseResult.errors.find(e => 
+      e.message.includes('several name definitions found')
+    );
+    expect(duplicateError).toBeDefined();
+  });
+
+  test('should detect unrecognized characters', async () => {
+    const gabcInvalidChars = `name: Test;
+%%
+(f3) Test(f§g) content.`;
+
+    const parseResult = parser.parse(gabcInvalidChars);
+    
+    expect(parseResult.success).toBe(false);
+    expect(parseResult.errors.length).toBeGreaterThan(0);
+    
+    const charError = parseResult.errors.find(e => 
+      e.message.includes('unrecognized character')
+    );
+    expect(charError).toBeDefined();
+  });
 });

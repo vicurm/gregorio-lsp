@@ -118,26 +118,81 @@ export interface AlternationPattern {
 
 // Error Types
 export enum ErrorCode {
+  // Parse errors
   PARSE_ERROR = 'parse_error',
+  UNRECOGNIZED_CHARACTER = 'unrecognized_character',
+  
+  // Header errors
   INVALID_HEADER = 'invalid_header',
+  MISSING_NAME = 'missing_name',
+  EMPTY_NAME = 'empty_name',
+  MULTIPLE_HEADERS = 'multiple_headers',
+  TOO_MANY_ANNOTATIONS = 'too_many_annotations',
+  
+  // NABC errors
   INVALID_NABC_LINES = 'invalid_nabc_lines',
+  INVALID_PIPE_WITHOUT_NABC = 'invalid_pipe_without_nabc',
+  NABC_IN_GABC_ONLY_MODE = 'nabc_in_gabc_only_mode',
   ALTERNATION_VIOLATION = 'alternation_violation',
+  INCONSISTENT_ALTERNATION = 'inconsistent_alternation',
+  
+  // Notation errors
   INVALID_NEUME = 'invalid_neume',
   INVALID_NABC_GLYPH = 'invalid_nabc_glyph',
+  INVALID_PITCH = 'invalid_pitch',
+  INVALID_CLEF_LINE = 'invalid_clef_line',
+  
+  // Structure errors
   MISSING_TEXT = 'missing_text',
   MISSING_MUSIC = 'missing_music',
-  INCONSISTENT_ALTERNATION = 'inconsistent_alternation',
-  INVALID_PIPE_WITHOUT_NABC = 'invalid_pipe_without_nabc',
-  NABC_IN_GABC_ONLY_MODE = 'nabc_in_gabc_only_mode'
+  UNCLOSED_BRACKET = 'unclosed_bracket',
+  INVALID_BRACKET = 'invalid_bracket',
+  
+  // Style errors
+  INVALID_STYLE = 'invalid_style',
+  STYLE_CONFLICT = 'style_conflict',
+  
+  // Score integrity errors
+  INVALID_SCORE = 'invalid_score',
+  FIRST_SYLLABLE_ERROR = 'first_syllable_error'
 }
 
 // Official Gregorio Compiler Error Messages
 export const GREGORIO_ERROR_MESSAGES = {
+  // Core NABC errors
   PIPE_WITHOUT_NABC_LINES: 'You used character "|" in gabc without setting "nabc-lines" parameter. Please set it in your gabc header.',
   NABC_WITHOUT_ALTERNATION: 'NABC notation detected without proper alternation. Verify nabc-lines configuration and alternation pattern.',
+  
+  // Character and parsing errors
   UNRECOGNIZED_CHARACTER: 'unrecognized character',
-  NO_NAME_SPECIFIED: 'no name specified, put `name:...;\' at the beginning of the file, can be dangerous with some output formats',
-  TOO_MANY_ANNOTATIONS: 'too many definitions of annotation found, only the first will be taken into consideration',
+  
+  // Header validation errors
+  NO_NAME_SPECIFIED: 'no name specified, put `name:...\' at the beginning of the file, can be dangerous with some output formats',
+  NAME_CANNOT_BE_EMPTY: 'name can\'t be empty',
+  TOO_MANY_ANNOTATIONS: 'too many definitions of annotation found, only the first %d will be taken',
+  MULTIPLE_HEADER_DEFINITIONS: 'several %s definitions found, only the last will be taken into consideration',
+  
+  // Pitch and clef errors  
+  INVALID_PITCH: 'invalid pitch for %u lines: %c',
+  INVALID_CLEF_LINE: 'invalid clef line for %u lines: %d',
+  
+  // Slur and bracket errors
+  UNCLOSED_LEFT_BRACKET: 'unclosed left bracket',
+  CANNOT_ADD_LEFT_BRACKET: 'cannot add a left bracket before closing the previous one',
+  CANNOT_ADD_RIGHT_BRACKET: 'cannot add a right bracket without a matching left bracket',
+  BRACKETS_WITHOUT_NOTES: 'cannot add brackets without notes between them',
+  
+  // Style and centering errors
+  STYLE_ALREADY_STARTED: 'style already started: %s',
+  STYLE_NOT_STARTED: 'style not started: %s',
+  SYLLABLE_ALREADY_HAS_CENTER: 'syllable already has center; ignoring additional center',
+  CENTER_NOT_ALLOWED_AFTER_PROTRUSION: 'center not allowed after protrusion; ignored',
+  NOT_WITHIN_SYLLABLE_CENTER: 'not within a syllable center',
+  
+  // Score integrity errors
+  INVALID_SCORE: 'unable to determine a valid score from file',
+  LINE_BREAK_NOT_SUPPORTED_FIRST_SYLLABLE: 'line break is not supported on the first syllable',
+  CLEF_CHANGE_NOT_SUPPORTED_FIRST_SYLLABLE: 'clef change is not supported on the first syllable',
 } as const;
 
 export interface GABCError extends ParseError {

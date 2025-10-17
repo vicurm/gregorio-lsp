@@ -52,14 +52,23 @@ export class GABCParser {
 
       const ast = this.convertToAST(tree.rootNode, text);
       
-      // Run NABC alternation validation
+      // Run comprehensive validation
       const nabcConfig = this.extractNABCConfiguration(ast as GABCDocument);
-      const alternationErrors = this.validateAlternation(ast as GABCDocument, nabcConfig);
+      const allErrors: ParseError[] = [];
+      
+      // Validate headers
+      allErrors.push(...this.validateHeaders(ast as GABCDocument));
+      
+      // Validate NABC alternation
+      allErrors.push(...this.validateAlternation(ast as GABCDocument, nabcConfig));
+      
+      // Validate characters and notation
+      allErrors.push(...this.validateNotation(ast as GABCDocument));
       
       return {
-        success: alternationErrors.length === 0,
+        success: allErrors.length === 0,
         ast: ast as GABCDocument,
-        errors: alternationErrors
+        errors: allErrors
       };
     } catch (error) {
       return {
@@ -115,14 +124,23 @@ export class GABCParser {
         music: musicSection
       };
 
-      // Run NABC alternation validation
+      // Run comprehensive validation
       const nabcConfig = this.extractNABCConfiguration(ast);
-      const alternationErrors = this.validateAlternation(ast, nabcConfig);
+      const allErrors: ParseError[] = [];
+      
+      // Validate headers
+      allErrors.push(...this.validateHeaders(ast));
+      
+      // Validate NABC alternation
+      allErrors.push(...this.validateAlternation(ast, nabcConfig));
+      
+      // Validate characters and notation
+      allErrors.push(...this.validateNotation(ast));
 
       return {
-        success: alternationErrors.length === 0,
+        success: allErrors.length === 0,
         ast,
-        errors: alternationErrors
+        errors: allErrors
       };
     } catch (error) {
       return {
@@ -219,6 +237,92 @@ export class GABCParser {
       headerValue: nabcLinesHeader.value,
       alternationPattern: value > 0 ? 'nabc' : 'gabc'
     };
+  }
+
+  public validateHeaders(ast: GABCDocument): ParseError[] {
+    const errors: ParseError[] = [];
+    const headerCounts = new Map<string, number>();
+    
+    // Check for required name header
+    const nameHeader = ast.headers.find(h => h.name.toLowerCase() === 'name');
+    if (!nameHeader) {
+      errors.push({
+        message: GREGORIO_ERROR_MESSAGES.NO_NAME_SPECIFIED,
+        range: this.createRange(0, 0, 0, 0),
+        severity: 2 // Warning
+      });
+    } else if (!nameHeader.value || nameHeader.value.trim() === '') {
+      errors.push({
+        message: GREGORIO_ERROR_MESSAGES.NAME_CANNOT_BE_EMPTY,
+        range: nameHeader.range,
+        severity: 2 // Warning
+      });
+    }
+    
+    // Check for duplicate headers
+    ast.headers.forEach(header => {
+      const headerName = header.name.toLowerCase();
+      const count = headerCounts.get(headerName) || 0;
+      headerCounts.set(headerName, count + 1);
+      
+      if (count > 0) {
+        // Format message with header name
+        const message = GREGORIO_ERROR_MESSAGES.MULTIPLE_HEADER_DEFINITIONS
+          .replace('%s', header.name);
+        
+        errors.push({
+          message,
+          range: header.range,
+          severity: 2 // Warning
+        });
+      }
+    });
+    
+    // Check for too many annotations (max 2 in Gregorio)
+    const annotationHeaders = ast.headers.filter(h => 
+      h.name.toLowerCase() === 'annotation'
+    );
+    if (annotationHeaders.length > 2) {
+      const message = GREGORIO_ERROR_MESSAGES.TOO_MANY_ANNOTATIONS
+        .replace('%d', '2');
+        
+      annotationHeaders.slice(2).forEach(header => {
+        errors.push({
+          message,
+          range: header.range,
+          severity: 2 // Warning
+        });
+      });
+    }
+    
+    return errors;
+  }
+
+  public validateNotation(ast: GABCDocument): ParseError[] {
+    const errors: ParseError[] = [];
+    
+    // Validate unrecognized characters in music notation
+    ast.music.syllables.forEach(syllable => {
+      if (syllable.music) {
+        const musicContent = syllable.music.content;
+        
+        // Check for common unrecognized characters
+        const invalidChars = /[^a-zA-Z0-9()\[\]{}|\/\\\-_.'`~<>:;,=+@#$% \t\n\r]/g;
+        let match;
+        
+        while ((match = invalidChars.exec(musicContent)) !== null) {
+          const message = GREGORIO_ERROR_MESSAGES.UNRECOGNIZED_CHARACTER + `: "${match[0]}"`;
+          
+          errors.push({
+            message,
+            range: syllable.music.range,
+            severity: 1 // Error
+          });
+        }
+      }
+    });
+    
+    return errors;
   }
 
   public validateAlternation(ast: GABCDocument, nabcConfig: NABCConfiguration): ParseError[] {

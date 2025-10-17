@@ -1,67 +1,67 @@
 # Gregorio Compiler Integration
 
-Este documento descreve como o LSP gregorio-lsp integra as mensagens oficiais de erro do compilador Gregorio.
+This document describes how the gregorio-lsp LSP integrates official error messages from the Gregorio compiler.
 
-## Mensagens Oficiais Implementadas
+## Implemented Official Messages
 
-### 1. Erro de Pipe sem nabc-lines
+### 1. Pipe Without nabc-lines Error
 
-**Mensagem Oficial**: `"You used character "|" in gabc without setting "nabc-lines" parameter. Please set it in your gabc header."`
+**Official Message**: `"You used character "|" in gabc without setting "nabc-lines" parameter. Please set it in your gabc header."`
 
-**Fonte**: `gabc-score-determination.y` linhas 871-875 do compilador Gregorio
+**Source**: `gabc-score-determination.y` lines 871-875 from Gregorio compiler
 
-**Código do Erro**: `invalid_pipe_without_nabc`
+**Error Code**: `invalid_pipe_without_nabc`
 
-**Comportamento**: Detecta quando o caractere "|" é usado em arquivos GABC sem o cabeçalho `nabc-lines` definido.
+**Behavior**: Detects when the "|" character is used in GABC files without the `nabc-lines` header defined.
 
-### 2. Erro de NABC sem Alternação
+### 2. NABC Without Alternation Error
 
-**Mensagem**: `"NABC notation detected without proper alternation. Verify nabc-lines configuration and alternation pattern."`
+**Message**: `"NABC notation detected without proper alternation. Verify nabc-lines configuration and alternation pattern."`
 
-**Código do Erro**: `nabc_in_gabc_only_mode`
+**Error Code**: `nabc_in_gabc_only_mode`
 
-**Comportamento**: Detecta notação NABC em contextos que deveriam conter apenas GABC.
+**Behavior**: Detects NABC notation in contexts that should contain only GABC.
 
-## Implementação Técnica
+## Technical Implementation
 
-### Constantes de Mensagem
+### Message Constants
 
 ```typescript
 export const GREGORIO_ERROR_MESSAGES = {
   PIPE_WITHOUT_NABC_LINES: 'You used character "|" in gabc without setting "nabc-lines" parameter. Please set it in your gabc header.',
   NABC_WITHOUT_ALTERNATION: 'NABC notation detected without proper alternation. Verify nabc-lines configuration and alternation pattern.',
-  // ... outras mensagens
+  // ... other messages
 } as const;
 ```
 
-### Validação Automática
+### Automatic Validation
 
-O LSP executa automaticamente a validação de alternação NABC durante o parsing:
+The LSP automatically executes NABC alternation validation during parsing:
 
-1. **Extração de Configuração**: Identifica o valor de `nabc-lines` nos cabeçalhos
-2. **Análise de Grupos**: Processa grupos de notas `(...)` individualmente  
-3. **Validação de Snippets**: Verifica cada snippet separado por "|" dentro dos grupos
-4. **Detecção de Padrões**: Usa padrões regex refinados para distinguir GABC de NABC
+1. **Configuration Extraction**: Identifies the `nabc-lines` value in headers
+2. **Group Analysis**: Processes note groups `(...)` individually  
+3. **Snippet Validation**: Checks each snippet separated by "|" within groups
+4. **Pattern Detection**: Uses refined regex patterns to distinguish GABC from NABC
 
-### Padrões NABC Refinados
+### Refined NABC Patterns
 
-Os padrões foram otimizados para evitar falsos positivos:
+The patterns were optimized to avoid false positives:
 
 ```typescript
 const nabcPatterns = [
-  /[a-z]{3,}[0-9]/,         // Descriptores longos: peGlsa6tohl, toppt2lss2lsim2
-  /[a-z]+pt[0-9]/,          // Descriptores de ponto: toppt2
-  /lss?[0-9]/,              // Espaçamento de linha: lss2, ls3
-  /lsim[0-9]/,              // Simulação de linha: lsim2
-  /\b(un|ta|vi)\b/,         // Modificadores NABC como palavras completas
-  /[0-9][a-z]/,             // Dígito seguido de letra: descriptores de pitch NABC
-  /g[a-z]{2,}/,             // Descriptores de glifo com 3+ caracteres (evita 'gf', 'ge')
+  /[a-z]{3,}[0-9]/,         // Long descriptors: peGlsa6tohl, toppt2lss2lsim2
+  /[a-z]+pt[0-9]/,          // Point descriptors: toppt2
+  /lss?[0-9]/,              // Line spacing: lss2, ls3
+  /lsim[0-9]/,              // Line simulation: lsim2
+  /\b(un|ta|vi)\b/,         // NABC modifiers as complete words
+  /[0-9][a-z]/,             // Digit followed by letter: NABC pitch descriptors
+  /g[a-z]{2,}/,             // Glyph descriptors with 3+ characters (avoids 'gf', 'ge')
 ];
 ```
 
-## Exemplos de Uso
+## Usage Examples
 
-### Arquivo Válido (com nabc-lines)
+### Valid File (with nabc-lines)
 
 ```gabc
 name: Tollite portas;
@@ -70,9 +70,9 @@ nabc-lines: 2;
 (f3) Tol(ce/fgf|peGlsa6tohl|toppt2lss2lsim2)li(f|un|ta)te(f|un|ta)
 ```
 
-**Resultado**: ✅ Nenhum erro - alternação correta detectada
+**Result**: ✅ No errors - correct alternation detected
 
-### Arquivo Inválido (pipe sem nabc-lines)
+### Invalid File (pipe without nabc-lines)
 
 ```gabc
 name: Test;
@@ -80,17 +80,17 @@ name: Test;
 (f3) Test(f|g|h) content.
 ```
 
-**Resultado**: ❌ Erro oficial do Gregorio detectado
+**Result**: ❌ Official Gregorio error detected
 
-## Compatibilidade
+## Compatibility
 
-- **Gregorio Compiler**: Mensagens alinhadas com o código oficial do Gregorio
-- **Especificação NABC**: Suporte completo à alternação snippet-based
-- **VS Code LSP**: Integração nativa com diagnósticos do editor
+- **Gregorio Compiler**: Messages aligned with official Gregorio code
+- **NABC Specification**: Complete support for snippet-based alternation
+- **VS Code LSP**: Native integration with editor diagnostics
 
-## Testes
+## Testing
 
-Todos os testes passam com validação das mensagens oficiais:
+All tests pass with official message validation:
 
 ```bash
 npm test
