@@ -20,6 +20,7 @@ A complete Language Server Protocol implementation for GABC (Gregorian chant not
 - **Informative hover**: Detailed information about GABC/NABC elements
 - **Real-time diagnostics**: Detection of syntactic and semantic errors
 - **Melodic pattern analysis**: Identification of ascending, descending, and repetitive patterns
+- **Quilisma validation**: Automatic suggestions for glyph breaks and ascending motion verification
 
 ## Architecture
 
@@ -124,6 +125,31 @@ nabc-lines: 1;
 Ky(f)ri(gh)e(h) *() e(h)le(gf)i(g)son.(f.) (::)
 Chri(1h) n2g ste(2i) e(h)le(gf)i(g)son.(f.)
 ```
+
+### Quilisma Validation
+
+The LSP provides automatic validation for quilisma (w/W) usage:
+
+```gabc
+name: Quilisma Examples;
+%%
+% Good: quilisma ascending with glyph break
+Good(g!wh)example(f!wi). (::)
+
+% Information: suggests glyph break for better rendering
+Need(gwh)glyph(fwi)break. (::)
+
+% Warning: quilisma should ascend to higher note
+Bad(gwf)quilisma(fwe). (::)
+```
+
+**Diagnostic Codes:**
+- `quilisma-glyph-break` (Information): Suggests adding `!` before quilisma note
+  - Example: `gwh` → suggestion to use `g!wh`
+- `quilisma-ascending-motion` (Warning): Quilisma must be followed by higher pitch
+  - Example: `gwf` warns because f ≤ g (descending/level)
+- `quilisma-no-following-note` (Warning): Quilisma at end without following note
+  - Example: isolated `gw` generates warning
 
 ### Supported Headers
 
