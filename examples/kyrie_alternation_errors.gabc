@@ -1,0 +1,9 @@
+name: Kyrie - Test with Errors;
+office-part: Ordinary;
+mode: 8;
+nabc-lines: 2 4;
+%%
+(c4) Ky(f)ri(g)e(h) e(g)lé(f)i(g)son.(g.) (::)
+(c4) Chri(ixfh)ste(h) e(g)lé(f)i(g)son.(g.) (::)  # ERRO: Linha 2 deveria ser NABC
+(c4) Ky(f)ri(g)e(h) e(g)lé(f)i(g)son.(g.) (::)
+(1) Ka(2)ra(3)e(4) e(5)lov(6)son.(7) (::)  # ERRO: Linha 4 está NABC mas linha anterior era GABC
