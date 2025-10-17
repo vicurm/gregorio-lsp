@@ -4,7 +4,7 @@
 
 A comprehensive analysis of GABC file structure based on official Gregorio documentation (GregorioRef) and implementation specifications. This document serves as the authoritative reference for LSP semantic validation and parsing.
 
-**Document Version**: 1.0.0  
+**Document Version**: 1.0.2  
 **Based on**: Gregorio Project Official Documentation  
 **Purpose**: LSP semantic analysis and validation
 
@@ -277,14 +277,14 @@ Clefs are specified at the beginning or when changing:
 
 #### Clef Components
 - **Letter**: `c` (do clef) or `f` (fa clef)
-- **Optional**: `b` (flat on clef)
+- **Optional**: `b` (flat on clef, only applicable to `c` clef)
 - **Number**: Line number (1-5, bottom to top)
 
 #### Examples
 ```gabc
 (c4)    % Do clef on 4th line
 (f3)    % Fa clef on 3rd line
-(cb4)   % Do clef on 4th line with flat
+(cb4)   % Do clef on 4th line with flat (only c clef can have flat)
 ```
 
 #### Double Clefs (v4.1+)
@@ -390,14 +390,16 @@ Markup tags for styled text:
 ### 5.1 Pitch Notation
 
 #### Pitch Letters
-13 possible pitches: `a` through `m`
+Possible pitches: `a` through `p` (15 pitches total, excluding `o`/`O` which designate oriscus)
 
-- **Lowercase** (`a-m`): punctum quadratum (square note)
-- **Uppercase** (`A-M`): punctum inclinatum (diamond note)
+- **Lowercase** (`a-n`, `p`): punctum quadratum (square note)
+- **Uppercase** (`A-N`, `P`): punctum inclinatum (diamond note)
+- **Note**: Letters `o` and `O` are reserved for oriscus notation, not pitches
 
 #### Pitch Correspondence
 ```
 Staff line (4-line staff):
+            p   n
 Top (4):    m
            l k
 Mid (3):    j
@@ -614,7 +616,7 @@ nabc-lines: 1;
 #### Structure Rules
 1. ✅ Body MUST start with clef: `(c4)` or `(f3)`
 2. ✅ Notes MUST be in parentheses: `text(notes)`
-3. ✅ Pitches MUST be `a-m` (lowercase) or `A-M` (uppercase)
+3. ✅ Pitches MUST be `a-n`, `p` (lowercase) or `A-N`, `P` (uppercase), excluding `o`/`O` (oriscus)
 4. ✅ Bars MUST use valid separators: `,`, `;`, `:`, `::`
 
 #### Text Rules
@@ -732,7 +734,7 @@ Si(hi|pe-pevi-peto)on(hgh|to-tocl)
 - ✅ Check NABC alternation pattern when `nabc-lines` present
 
 ### Priority 2: Enhanced Validation
-- ⚠️ Validate pitch letters `a-m` / `A-M`
+- ⚠️ Validate pitch letters `a-n`, `p` / `A-N`, `P` (excluding `o`/`O`)
 - ⚠️ Check bar syntax: `,`, `;`, `:`, `::`
 - ⚠️ Verify text-note pairing: `text(notes)`
 - ⚠️ Validate mode range (1-8 typical)
@@ -783,6 +785,8 @@ Si(hi|pe-pevi-peto)on(hgh|to-tocl)
 Clef: c4 (do clef on 4th line)
 
 Staff:  Note:  Letter:
+                (p)    p
+                (n)    n
 ─────── (m)    m
         (l)    l
 ─────── (k)    k
@@ -797,6 +801,8 @@ Staff:  Note:  Letter:
         (b)    b
         (a)    a
 ```
+
+**Note**: Pitches are `a-n` and `p` (15 total). Letters `o` and `O` are reserved for oriscus notation.
 
 ---
 
@@ -818,14 +824,16 @@ Staff:  Note:  Letter:
 
 ## Document Metadata
 
-**Version**: 1.0.0  
+**Version**: 1.0.2  
 **Last Updated**: 2024-10-17  
 **Author**: Gregorio LSP Project  
 **Based On**: Gregorio Project Official Documentation  
 **Status**: Complete
 
 **Changelog**:
-- 2024-10-17: Initial comprehensive document created
+- 2024-10-17 v1.0.2: Excluded o/O from pitch letters (reserved for oriscus notation)
+- 2024-10-17 v1.0.1: Corrected pitch range (a-p instead of a-m) and clef flat notation (only for c clef)
+- 2024-10-17 v1.0.0: Initial comprehensive document created
 - Based on GregorioRef documentation analysis
 - Integrated with NABC_COMPREHENSIVE_ANALYSIS.md
 - Designed for LSP semantic validation implementation
