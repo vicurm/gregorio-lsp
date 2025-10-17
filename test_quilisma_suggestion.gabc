@@ -1,0 +1,21 @@
+name: Quilisma Validation Test;
+annotation: Test;
+%%
+
+% Test case 1: Simple quilisma - should suggest g!w
+(c4) Al(f)le(gw)lu(h)ia.
+
+% Test case 2: Quilisma quadratum - should suggest e!W
+(c4) Glo(d)ri(eW)a.
+
+% Test case 3: Quilisma on different note - should suggest h!w
+(c4) De(f)o(ghw)gra(j)ti(k)as.
+
+% Test case 4: Already has glyph break - should NOT suggest
+(c4) Cor(f!gw)rec(h)tum.
+
+% Test case 5: Multiple quilismas - should suggest !w twice
+(c4) Do(fgw)mi(hij)ne(iwk).
+
+% Test case 6: Quilisma in middle - should suggest g!hw
+(c4) San(abc)ctus(fghwi)Do(j)mi(k)ne.

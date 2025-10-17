@@ -174,12 +174,12 @@ export class GABCValidator {
     const diagnostics: Diagnostic[] = [];
     const content = music.content;
 
-    if (music.isNabc) {
+    if (music.isNabc === true) {
       // Validate NABC notation
       const nabcDiagnostics = this.validateNABCNotation(music);
       diagnostics.push(...nabcDiagnostics);
     } else {
-      // Validate GABC notation
+      // Validate GABC notation (default when isNabc is false or undefined)
       const gabcDiagnostics = this.validateGABCNotation(music);
       diagnostics.push(...gabcDiagnostics);
     }
@@ -235,32 +235,97 @@ export class GABCValidator {
     const diagnostics: Diagnostic[] = [];
     const content = music.content;
 
-    // Validate GABC pitch letters
+    // Check for quilisma usage and suggest glyph break (do this first)
+    const quilismaDiagnostics = this.validateQuilismaUsage(content, music.range);
+    diagnostics.push(...quilismaDiagnostics);
+
+    // Validate GABC pitch letters (exclude valid modifiers like w, W, v, V, s, o, O, q, r, R)
     const validPitches = 'abcdefghijklm';
-    const pitchPattern = /[a-m]/g;
+    const validModifiers = 'wWvVsoOqrR';
     
-    // Check for invalid pitch letters
-    const invalidPitches = content.match(/[n-z]/g);
+    // Check for invalid pitch letters (n-z except valid modifiers)
+    const invalidPitchPattern = /[n-uw-z]/gi;  // Exclude 'v' and 'w' which are modifiers
+    const invalidPitches = content.match(invalidPitchPattern);
     if (invalidPitches) {
-      diagnostics.push({
-        severity: DiagnosticSeverity.Error,
-        range: music.range,
-        message: `Invalid pitch letters in GABC notation: ${invalidPitches.join(', ')}`,
-        source: 'gregorio-lsp'
-      });
+      // Filter out valid modifiers
+      const actuallyInvalid = invalidPitches.filter(ch => !validModifiers.includes(ch));
+      if (actuallyInvalid.length > 0) {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: music.range,
+          message: `Invalid pitch letters in GABC notation: ${actuallyInvalid.join(', ')}`,
+          source: 'gregorio-lsp'
+        });
+      }
     }
 
-    // Validate neume shapes
-    const validShapes = ['~', 'v', '<', '>', 'o', 'O', '\\', '/', '+'];
-    for (const char of content) {
-      if (!validPitches.includes(char) && 
-          !validShapes.includes(char) && 
-          !char.match(/[\s\-|(){}[\]]/)) {
+    return diagnostics;
+  }
+
+    /**
+   * Validate quilisma usage and suggest glyph break before quilisma note
+   * 
+   * Rule: Add ! between the pitch immediately before the quilisma and the quilisma itself
+   * 
+   * Examples:
+   *   (gw)    → (g!w)     - single note before quilisma
+   *   (fgw)   → (fg!w)    - two notes before quilisma
+   *   (fghwi) → (fg!hwi)  - quilisma on 'h', break before 'h'
+   */
+  private validateQuilismaUsage(content: string, range: any): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+
+    // Pattern to match: any pitch followed by quilisma modifier (w or W)
+    // This captures both simple cases like 'gw' and complex like 'fghwi'
+    const quilismaPattern = /([a-m])([wW])/g;
+    let match;
+    
+    while ((match = quilismaPattern.exec(content)) !== null) {
+      const noteBeforeQuilisma = match[1];      // e.g., 'g' in 'gw' or 'h' in 'hw'
+      const quilismaModifier = match[2];        // 'w' or 'W'
+      const matchIndex = match.index;
+
+      // Check if there's already a glyph break (!) immediately before this note
+      const precedingChar = matchIndex > 0 ? content[matchIndex - 1] : '';
+      const hasGlyphBreak = precedingChar === '!';
+
+      if (!hasGlyphBreak) {
+        // The suggestion is to add ! before the note that has quilisma
+        const noteWithQuilisma = `${noteBeforeQuilisma}${quilismaModifier}`;
+        
+        diagnostics.push({
+          severity: DiagnosticSeverity.Information,
+          range: range,
+          message: `Consider adding glyph break (!) before quilisma note for better rendering. Suggestion: add ! before '${noteWithQuilisma}'`,
+          source: 'gregorio-lsp',
+          code: 'quilisma-glyph-break'
+        });
+      }
+
+      // Check if quilisma is followed by a higher note
+      const noteAfterQuilismaMatch = content.substring(matchIndex + match[0].length).match(/^([a-m])/);
+      if (noteAfterQuilismaMatch) {
+        const noteAfter = noteAfterQuilismaMatch[1];
+        const quilismaPitch = noteBeforeQuilisma.charCodeAt(0);
+        const nextPitch = noteAfter.charCodeAt(0);
+
+        if (nextPitch <= quilismaPitch) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: range,
+            message: `Quilisma should be followed by a higher note. Currently '${noteBeforeQuilisma}${quilismaModifier}' is followed by '${noteAfter}' (same or lower pitch)`,
+            source: 'gregorio-lsp',
+            code: 'quilisma-ascending-motion'
+          });
+        }
+      } else {
+        // Quilisma is not followed by any note
         diagnostics.push({
           severity: DiagnosticSeverity.Warning,
-          range: music.range,
-          message: `Unusual character in GABC notation: ${char}`,
-          source: 'gregorio-lsp'
+          range: range,
+          message: `Quilisma '${noteBeforeQuilisma}${quilismaModifier}' should be followed by a higher note`,
+          source: 'gregorio-lsp',
+          code: 'quilisma-no-following-note'
         });
       }
     }

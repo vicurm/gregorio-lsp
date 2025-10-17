@@ -1,0 +1,7 @@
+name: Quilisma Ascending Motion Test;
+%%
+(c4) Test(gwh)case(gwi)one(gwj). (::)
+
+(c4) Bad(gw)case(gwf)two(gwe). (::)
+
+(c4) Mixed(gwh)good(gwf)bad(gwi). (::)
