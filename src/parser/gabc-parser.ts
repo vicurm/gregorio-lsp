@@ -289,15 +289,23 @@ export class GABCParser {
     // NABC-specific patterns based on official Gregorio specification
     // Reference: NABC_COMPREHENSIVE_ANALYSIS.md
     
-    // St. Gall neume codes (31 codes) + Laon additions (un, oc)
-    const neumeCodesPattern = /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)\b/;
-    
     // Definitive NABC patterns
     const nabcPatterns = [
-      // Neume codes with NABC-specific modifiers or pitch descriptors
-      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[SGM\->~]/,  // neume + glyph modifier
-      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)h[a-np]/,     // neume + pitch descriptor
-      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)!/,           // neume + complex glyph separator
+      // NABC neume codes alone (word boundary) - must not be followed by GABC pattern
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)\b/,
+      
+      // NABC neume codes with NABC pitch descriptors (1a-4m, n0-nf)
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[1-4][a-m]/,
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)n[0-9a-f]/,
+      
+      // Neume codes with NABC-specific modifiers
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[SGM\->~]/,
+      
+      // Neume codes with pitch descriptor with specifier
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)h[a-np]/,
+      
+      // Neume codes with glyph break
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)!/,
       
       // Subpunctis/prepunctis descriptors (su/pp + optional modifier + number)
       /\b(su|pp)[tuvwxynqz]?\d/,
@@ -310,9 +318,6 @@ export class GABCParser {
       
       // NABC horizontal spacing (multiple backticks)
       /``+/,
-      
-      // Multiple NABC neumes in sequence (strong indicator)
-      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[^()\s]*\s+(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)/,
     ];
 
     return nabcPatterns.some(pattern => pattern.test(musicContent));
@@ -913,9 +918,20 @@ export class GABCParser {
     // Reference: NABC_COMPREHENSIVE_ANALYSIS.md
     
     const nabcPatterns = [
-      // NABC neume codes with NABC-specific modifiers or pitch descriptors
+      // NABC neume codes alone (word boundary)
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)\b/,
+      
+      // NABC neume codes with NABC pitch descriptors (1a-4m, n0-nf)
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[1-4][a-m]/,
+      /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)n[0-9a-f]/,
+      
+      // NABC neume codes with NABC-specific modifiers
       /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)[SGM\->~]/,
+      
+      // NABC neume codes with pitch descriptor with specifier (h + specifier)
       /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)h[a-np]/,
+      
+      // NABC neume codes with glyph break
       /\b(vi|pu|ta|gr|cl|pe|po|to|ci|sc|pf|sf|tr|st|ds|ts|tg|bv|tv|pr|pi|vs|or|sa|pq|ql|qi|pt|ni|un|oc)!/,
       
       // Subpunctis/prepunctis with optional modifiers and number
@@ -929,9 +945,6 @@ export class GABCParser {
       
       // NABC spacing (multiple backticks)
       /``+/,
-      
-      // Laon-specific neume codes as word boundaries
-      /\b(un|oc)\b/,
     ];
 
     const isNabc = nabcPatterns.some((pattern) => pattern.test(snippet));
